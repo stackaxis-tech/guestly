@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.local
+backend/bin/
+.DS_Store
+backend/var/
+deploy/bin/
+deploy/web/
+deploy/.env
+deploy/ADMIN_CREDENTIALS.txt
+.playwright-mcp/

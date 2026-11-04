@@ -1,0 +1,55 @@
+# Production stack for a single VM. Run from this directory:  docker compose up -d
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: guestly
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: guestly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guestly"]
+      interval: 5s
+      retries: 20
+    # No published ports: only reachable from the api container.
+
+  api:
+    image: alpine:3.20
+    restart: unless-stopped
+    command: ["/app/guestly-api"]
+    working_dir: /app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://guestly:${DB_PASSWORD}@db:5432/guestly?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      APP_URL: ${PUBLIC_URL}
+      PUBLIC_API_URL: ${PUBLIC_URL}/api/v1
+      ALLOWED_ORIGINS: ${PUBLIC_URL}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      UPLOAD_DIR: /data/uploads
+      GUESTLY_ENV: production
+      DATA_KEY: ${DATA_KEY:?set DATA_KEY in .env (back it up, ID data is unreadable without it)}
+      TZ: Asia/Kolkata
+    volumes:
+      - ./bin:/app:ro
+      - uploads:/data/uploads
+
+  web:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv:ro
+      - caddy_data:/data
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:

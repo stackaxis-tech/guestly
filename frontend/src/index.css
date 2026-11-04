@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/*
+ * Guestly design tokens: Teal + Marigold on warm ivory.
+ *
+ * 60 / 30 / 10: ivory surfaces, teal structure and actions, and marigold only
+ * as a highlight (welcome light, rating stars, "needs attention").
+ * Marigold is never used for body text on light backgrounds (contrast); use
+ * marigold-700 when it has to be text.
+ */
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+
+  /* Brand: deep teal (700 is the primary) */
+  --color-teal-50: #eef6f5;
+  --color-teal-100: #d5eae7;
+  --color-teal-200: #a9d3cd;
+  --color-teal-300: #74b5ad;
+  --color-teal-400: #3f918a;
+  --color-teal-500: #1f726c;
+  --color-teal-600: #145d58;
+  --color-teal-700: #0f4c4a;
+  --color-teal-800: #0b3937;
+  --color-teal-900: #082826;
+
+  /* Accent: marigold (400 is the brand accent) */
+  --color-marigold-50: #fdf6e9;
+  --color-marigold-100: #fae8c4;
+  --color-marigold-200: #f5d18a;
+  --color-marigold-300: #efbb5a;
+  --color-marigold-400: #e8a33d;
+  --color-marigold-500: #d48a22;
+  --color-marigold-600: #b06d16;
+  --color-marigold-700: #8a5413;
+
+  /* Neutrals: warm, slightly green-tinted to sit with teal */
+  --color-ivory: #faf7f2;
+  --color-paper: #ffffff;
+  --color-sand: #f3eee5;
+  --color-line: #e7e1d6;
+  --color-line-strong: #d6cebf;
+  --color-ink: #1a2423;
+  --color-ink-soft: #3d4a48;
+  --color-muted: #66726f;
+
+  /* Room status */
+  --color-ready: #2f7d55;
+  --color-ready-bg: #e5f3ea;
+  --color-occupied: #0f4c4a;
+  --color-occupied-bg: #d5eae7;
+  --color-cleaning: #8a5413;
+  --color-cleaning-bg: #fae8c4;
+  --color-maintenance: #57606a;
+  --color-maintenance-bg: #eceef0;
+
+  /* Feedback */
+  --color-danger: #b42318;
+  --color-danger-bg: #fdecea;
+
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(26 36 35 / 0.04), 0 1px 1px rgb(26 36 35 / 0.03);
+  --shadow-pop: 0 10px 30px -10px rgb(26 36 35 / 0.25);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-ivory text-ink font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3 {
+    @apply text-ink;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-teal-500);
+    outline-offset: 2px;
+  }
+  /* Rupee amounts and room numbers line up in tables */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Date inputs: hide the browser's calendar glyph but keep the whole field clickable. */
+.date-input {
+  position: relative;
+  color-scheme: light;
+}
+.date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  opacity: 0;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
