@@ -132,3 +132,47 @@ func TestRupeeText(t *testing.T) {
 		}
 	}
 }
+
+func TestReservationValidate(t *testing.T) {
+	today := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	good := func() reservationInput {
+		return reservationInput{GuestName: "  Test   Guest ", GuestPhone: "98470 55555", CheckIn: "2026-11-10", CheckOut: "2026-11-12", Adults: 2, NightlyRate: 350000}
+	}
+	in := good()
+	if f := in.validate(today); len(f) != 0 {
+		t.Fatalf("valid booking rejected: %v", f)
+	}
+	if in.GuestName != "Test Guest" || in.GuestPhone != "+919847055555" {
+		t.Fatalf("not normalized: %+v", in)
+	}
+	cases := []struct {
+		field string
+		edit  func(*reservationInput)
+	}{
+		{"checkIn", func(r *reservationInput) { r.CheckIn = "2026-11-08" }},
+		{"checkOut", func(r *reservationInput) { r.CheckOut = r.CheckIn }},
+		{"checkOut", func(r *reservationInput) { r.CheckOut = "2027-06-30" }},
+		{"guestPhone", func(r *reservationInput) { r.GuestPhone = "123" }},
+		{"guestName", func(r *reservationInput) { r.GuestName = " " }},
+		{"adults", func(r *reservationInput) { r.Adults = 0 }},
+		{"advanceMode", func(r *reservationInput) { r.AdvanceAmount = 100 }},
+	}
+	for _, c := range cases {
+		in := good()
+		c.edit(&in)
+		if f := in.validate(today); f[c.field] == "" {
+			t.Errorf("expected %s error, got %v", c.field, f)
+		}
+	}
+}
+
+func TestStayRange(t *testing.T) {
+	ist := time.FixedZone("IST", 19800)
+	a := time.Date(2026, 11, 9, 14, 0, 0, 0, ist)
+	if from, to := stayRange(a, a.Add(2*time.Hour)); from != "2026-11-09" || to != "2026-11-10" {
+		t.Errorf("same-day stay = %s..%s", from, to)
+	}
+	if from, to := stayRange(a, a.AddDate(0, 0, 2)); from != "2026-11-09" || to != "2026-11-11" {
+		t.Errorf("two nights = %s..%s", from, to)
+	}
+}

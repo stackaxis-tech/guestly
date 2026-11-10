@@ -201,7 +201,7 @@ export function relativeDays(days: number): string {
 
 /** WhatsApp share link for an invite (opens WhatsApp with the message prefilled). */
 export function whatsappInviteLink(phone: string, name: string, url: string): string {
-  const text = `Hi ${name}, your Guestly account is ready. Set your password here: ${url}`;
+  const text = `Hi ${name}, your Guestlog account is ready. Set your password here: ${url}`;
   const digits = phone.replace(/\D/g, "");
   const to = digits.length === 10 ? "91" + digits : digits;
   return `https://wa.me/${to}?text=${encodeURIComponent(text)}`;

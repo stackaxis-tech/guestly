@@ -69,6 +69,7 @@ type checkInReq struct {
 	Notes              string           `json:"notes"`
 	Advance            *paymentInput    `json:"advance"`
 	WhatsAppConsent    bool             `json:"whatsappConsent"`
+	ReservationID      string           `json:"reservationId"` // set when arriving on a booking
 }
 
 var docTypes = map[string]bool{"aadhaar": true, "passport": true, "driving_licence": true, "voter_id": true, "other": true}
@@ -298,6 +299,24 @@ func (h *Handler) CheckIn(w http.ResponseWriter, r *http.Request) error {
 		return httpx.Invalid(map[string]string{"roomId": "This room isn't ready (" + roomStatus + "). Choose another or mark it ready first."})
 	}
 
+	var reservedAdvance int64
+	var reservedMode *string
+	var reservedRef string
+	if req.ReservationID != "" {
+		if err := lockBooked(ctx, tx, req.ReservationID); err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx, `SELECT advance_amount, advance_mode, advance_reference FROM reservations WHERE id::text = $1`,
+			req.ReservationID).Scan(&reservedAdvance, &reservedMode, &reservedRef); err != nil {
+			return err
+		}
+	}
+	// A walk-in can't take a room that's promised to someone else on those nights.
+	occupyFrom, occupyTo := stayRange(now, req.ExpectedCheckOutAt)
+	if err := roomBookedError(ctx, tx, propertyID, req.RoomID, occupyFrom, occupyTo, req.ReservationID); err != nil {
+		return err
+	}
+
 	consent := req.WhatsAppConsent
 	guestID, oldPhoto, err := h.saveGuest(ctx, tx, propertyID, req.Guest, &consent, "guest.")
 	if err != nil {
@@ -357,6 +376,18 @@ func (h *Handler) CheckIn(w http.ResponseWriter, r *http.Request) error {
 	}
 	if _, err := tx.Exec(ctx, `UPDATE rooms SET status = 'occupied', updated_at = now() WHERE id::text = $1`, req.RoomID); err != nil {
 		return err
+	}
+	if req.ReservationID != "" {
+		// The advance taken at booking becomes a payment on the stay exactly once.
+		if reservedAdvance > 0 && reservedMode != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO stay_payments (stay_id, amount, mode, reference, is_advance, received_by) VALUES ($1,$2,$3,$4,true,$5)`,
+				stayID, reservedAdvance, *reservedMode, reservedRef, auth.FromContext(ctx).UserID); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(ctx, `UPDATE reservations SET status='checked_in', stay_id=$2, updated_at=now() WHERE id::text = $1`, req.ReservationID, stayID); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
@@ -690,6 +721,19 @@ func (h *Handler) UpdateStay(w http.ResponseWriter, r *http.Request) error {
 	}
 	if !in.ExpectedCheckOutAt.After(checkIn) {
 		return httpx.Invalid(map[string]string{"expectedCheckOutAt": "Checkout must be after check-in."})
+	}
+	// Extending a stay can't run into someone else's booking.
+	var roomID string
+	if err := tx.QueryRow(ctx, `SELECT room_id FROM stays WHERE id::text = $1`, id).Scan(&roomID); err != nil {
+		return err
+	}
+	from, to := stayRange(time.Now(), in.ExpectedCheckOutAt)
+	if err := roomBookedError(ctx, tx, property.ID(ctx), roomID, from, to, ""); err != nil {
+		var apiErr *httpx.Error
+		if errors.As(err, &apiErr) && apiErr.Fields != nil {
+			return httpx.Invalid(map[string]string{"expectedCheckOutAt": apiErr.Fields["roomId"]})
+		}
+		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE stays SET expected_check_out_at=$2, nightly_rate=$3, adults=$4, children=$5, notes=$6 WHERE id::text = $1`,
 		id, in.ExpectedCheckOutAt, in.NightlyRate, in.Adults, in.Children, strings.TrimSpace(in.Notes)); err != nil {

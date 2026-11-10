@@ -624,7 +624,7 @@ function UsersList({ client }: { client: ClientDetail }) {
           ))}
         </ul>
       </Card>
-      <p className="text-sm text-muted">The owner can add their own staff from their Guestly settings (coming with check-in).</p>
+      <p className="text-sm text-muted">The owner can add their own staff from their Guestlog settings (coming with check-in).</p>
     </div>
   );
 }

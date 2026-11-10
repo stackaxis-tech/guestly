@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and ship Guestly to the VM. Usage: ./deploy/deploy.sh
+# Build and ship Guestlog to the VM. Usage: ./deploy/deploy.sh
 # Secrets live in deploy/.env (never committed); data lives in Docker volumes on the VM.
 set -euo pipefail
 HOST="${GUESTLY_HOST:-ubuntu@ec2-43-204-102-193.ap-south-1.compute.amazonaws.com}"

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Logo } from "../components/brand/Logo";
+import { PoweredBy } from "../components/PoweredBy";
 import { Button, ErrorNote, Field, Input } from "../components/ui";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -18,13 +19,14 @@ export function AuthPage({ children }: { children?: React.ReactNode }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1fr_1.1fr]">
       <BrandPanel />
-      <div className="flex flex-col px-5 py-8 sm:px-10">
+      <div className="flex flex-col px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-10">
         <div className="lg:hidden">
           <Logo size={30} />
         </div>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
           {children ?? <LoginForm />}
         </div>
+        <PoweredBy />
       </div>
     </div>
   );
@@ -108,7 +110,7 @@ function LoginForm() {
         </Button>
       </form>
       <p className="mt-6 text-center text-sm text-muted">
-        New hotel? Guestly sets up your account and sends you an invite link.
+        New hotel? Guestlog sets up your account and sends you an invite link.
       </p>
     </>
   );

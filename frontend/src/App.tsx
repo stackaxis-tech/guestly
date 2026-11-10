@@ -8,10 +8,12 @@ import { NewClientPage } from "./admin/NewClientPage";
 import { AppShell } from "./components/AppShell";
 import { LogoMark } from "./components/brand/Logo";
 import { ApiError } from "./lib/api";
+import { isNative } from "./lib/platform";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { PropertyProvider } from "./lib/property";
 import { AuthPage } from "./pages/AuthPage";
 import { InvitePage } from "./pages/InvitePage";
+import { ReservationsPage } from "./pages/ReservationsPage";
 import { RoomsPage } from "./pages/RoomsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CheckInPage } from "./pages/CheckInPage";
@@ -30,7 +32,7 @@ const queryClient = new QueryClient({
 
 function Splash() {
   return (
-    <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Loading Guestly">
+    <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Loading Guestlog">
       <LogoMark size={44} className="animate-pulse" />
     </div>
   );
@@ -59,6 +61,7 @@ function HotelApp() {
           <Route index element={<TodayPage />} />
           <Route path="rooms" element={<RoomsPage />} />
           <Route path="check-in" element={<CheckInPage />} />
+          <Route path="reservations" element={<ReservationsPage />} />
           <Route path="stays/:stayId" element={<StayPage />} />
           <Route path="guests" element={<GuestsPage />} />
           <Route path="guests/:guestId" element={<GuestDetailPage />} />
@@ -72,7 +75,7 @@ function HotelApp() {
   );
 }
 
-/* ---------- Guestly admin console ---------- */
+/* ---------- Guestlog admin console ---------- */
 
 function AdminApp() {
   const { status } = useAdminAuth();
@@ -95,7 +98,8 @@ function AdminApp() {
 
 function Root() {
   const { pathname } = useLocation();
-  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+  // The super admin console is web-only.
+  if (!isNative && (pathname === "/admin" || pathname.startsWith("/admin/"))) {
     return (
       <AdminAuthProvider>
         <AdminApp />

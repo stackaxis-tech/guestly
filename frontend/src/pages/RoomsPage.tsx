@@ -161,7 +161,12 @@ function RoomTile({ room, onClick }: { room: Room; onClick: () => void }) {
         <span className="tabular font-display text-2xl font-semibold">{room.number}</span>
         <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-semibold", m.bg, m.text)}>{m.label}</span>
       </div>
-      {room.guestName ? (
+      {room.reservedFor && !room.guestName ? (
+        <>
+          <p className="mt-2 truncate text-[13px] font-semibold text-marigold-700">Held: {room.reservedFor}</p>
+          <p className="truncate text-xs text-muted">{room.typeName}</p>
+        </>
+      ) : room.guestName ? (
         <>
           <p className="mt-2 truncate text-[13px] font-semibold text-ink">{room.guestName}</p>
           <p className="truncate text-xs text-muted">
@@ -234,9 +239,14 @@ function RoomSheet({
         </div>
       ) : (
         <div className="mt-5">
+          {room.reservedFor && user?.role !== "housekeeping" && (
+            <p className="mb-3 rounded-lg bg-marigold-50 px-3 py-2 text-sm text-marigold-700">
+              Held for <strong>{room.reservedFor}</strong> today.
+            </p>
+          )}
           {room.status === "ready" && user?.role !== "housekeeping" && (
-            <Link to={`/check-in?room=${room.id}`}>
-              <Button className="mb-5 w-full" icon={<LogIn className="size-4" />}>Check a guest in here</Button>
+            <Link to={room.reservationId ? `/check-in?reservation=${room.reservationId}` : `/check-in?room=${room.id}`}>
+              <Button className="mb-5 w-full" icon={<LogIn className="size-4" />}>{room.reservationId ? `Check in ${room.reservedFor}` : "Check a guest in here"}</Button>
             </Link>
           )}
           <p className="mb-2 text-sm font-medium text-ink-soft">Update housekeeping</p>

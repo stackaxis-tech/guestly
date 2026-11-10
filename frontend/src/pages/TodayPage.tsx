@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import { todayLabel } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
 import { statusMeta, useRooms, type RoomStatus } from "../lib/rooms";
+import { addDays, dayLabel, hotelToday, useReservations } from "../lib/reservations";
 import { useStays } from "../lib/stays";
 import { StayRow } from "./GuestsPage";
 
@@ -22,6 +23,11 @@ export function TodayPage() {
   const stays = useStays(property.id, "in_house");
   const s = rooms.data?.summary;
   const firstName = user?.name.split(" ")[0] ?? "";
+
+  const todayIso = hotelToday();
+  // Late arrivals still hold their room, so look back a little.
+  const bookings = useReservations(property.id, addDays(todayIso, -14), addDays(todayIso, 1), !isHousekeeping);
+  const arrivals = (bookings.data ?? []).filter((r) => r.status === "booked" && r.checkIn <= todayIso && r.checkOut > todayIso);
 
   const today = new Date().toDateString();
   const leaving = (stays.data ?? []).filter((x) => new Date(x.expectedCheckOutAt).toDateString() === today || new Date(x.expectedCheckOutAt) < new Date());
@@ -69,6 +75,31 @@ export function TodayPage() {
           </span>
           <ArrowRight className="size-4" aria-hidden />
         </Link>
+      )}
+
+      {!isHousekeeping && arrivals.length > 0 && (
+        <Card className="mt-6 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <h2 className="font-semibold">Arriving today</h2>
+            <span className="text-sm text-muted">{arrivals.length}</span>
+          </div>
+          <ul className="divide-y divide-line">
+            {arrivals.map((r) => (
+              <li key={r.id} className="flex items-center gap-3 px-5 py-3">
+                <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg bg-teal-50 font-display text-lg font-semibold text-teal-800">{r.roomNumber}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{r.guestName}</span>
+                  <span className="block truncate text-xs text-muted">
+                    {r.checkIn < todayIso ? `Late arrival · was due ${dayLabel(r.checkIn)}` : `Until ${dayLabel(r.checkOut)}`}
+                  </span>
+                </span>
+                <Link to={`/check-in?reservation=${r.id}`}>
+                  <Button size="sm">Check in</Button>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       {!isHousekeeping && (

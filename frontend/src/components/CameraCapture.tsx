@@ -1,28 +1,27 @@
 import clsx from "clsx";
 import { Camera, EyeOff, RefreshCw, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { isNative } from "../lib/platform";
 import { Button } from "./ui";
 
 /* ---------- Image helpers ---------- */
 
 const MAX_EDGE = 1600;
 
+const SCAN_EDGE = 2400;
+
 /** Downscales and re-encodes an image as JPEG so uploads stay small (~150–400 KB). */
-export async function compressImage(source: Blob | HTMLCanvasElement): Promise<Blob> {
-  let canvas: HTMLCanvasElement;
-  if (source instanceof HTMLCanvasElement) {
-    canvas = source;
-  } else {
-    const bmp = await createImageBitmap(source, { imageOrientation: "from-image" });
-    const scale = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height));
-    canvas = document.createElement("canvas");
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    bmp.close();
-  }
+export async function compressImage(source: Blob | HTMLCanvasElement, maxEdge = MAX_EDGE, quality = 0.82): Promise<Blob> {
+  const isCanvas = source instanceof HTMLCanvasElement;
+  const img = isCanvas ? source : await createImageBitmap(source, { imageOrientation: "from-image" });
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  if (!isCanvas) (img as ImageBitmap).close();
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't process the image."))), "image/jpeg", 0.82),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't process the image."))), "image/jpeg", quality),
   );
 }
 
@@ -38,11 +37,13 @@ type Props = {
   onChange: (b: Blob | null) => void;
   /** Ask staff to black out part of the image (Aadhaar number) before it's kept. */
   redact?: { instruction: string };
+  /** Receives a sharper copy of each new photo, before any masking, to read a QR code. */
+  onScan?: (b: Blob) => void;
   error?: string;
   shape?: "portrait" | "card";
 };
 
-export function CameraCapture({ label, hint, facing, value, onChange, redact, error, shape = "card" }: Props) {
+export function CameraCapture({ label, hint, facing, value, onChange, redact, onScan, error, shape = "card" }: Props) {
   const [preview, setPreview] = useState("");
   const [live, setLive] = useState(false);
   const [toRedact, setToRedact] = useState<Blob | null>(null);
@@ -65,6 +66,7 @@ export function CameraCapture({ label, hint, facing, value, onChange, redact, er
     setBusy(true);
     setLocalError("");
     try {
+      if (onScan) onScan(await compressImage(raw, SCAN_EDGE, 0.92));
       const b = await compressImage(raw);
       if (redact) setToRedact(b);
       else onChange(b);
@@ -86,7 +88,25 @@ export function CameraCapture({ label, hint, facing, value, onChange, redact, er
     void accept(f);
   };
 
-  const takePhoto = () => (canUseLiveCamera() ? setLive(true) : captureInput.current?.click());
+  const takeNativePhoto = async () => {
+    const { Camera, CameraDirection, CameraResultType, CameraSource } = await import("@capacitor/camera");
+    try {
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        direction: facing === "user" ? CameraDirection.Front : CameraDirection.Rear,
+        quality: 95,
+        correctOrientation: true,
+        saveToGallery: false,
+      });
+      if (photo.webPath) await accept(await (await fetch(photo.webPath)).blob());
+    } catch (err) {
+      // Backing out of the camera isn't an error.
+      if (!String(err).toLowerCase().includes("cancel")) setLocalError("Couldn't open the camera. Check camera permission, or use Upload.");
+    }
+  };
+
+  const takePhoto = () => (isNative ? void takeNativePhoto() : canUseLiveCamera() ? setLive(true) : captureInput.current?.click());
   const message = localError || error;
 
   return (
@@ -134,6 +154,7 @@ export function CameraCapture({ label, hint, facing, value, onChange, redact, er
       {live && (
         <LiveCamera
           facing={facing}
+          maxEdge={onScan ? SCAN_EDGE : MAX_EDGE}
           onClose={() => setLive(false)}
           onCapture={(c) => {
             setLive(false);
@@ -170,7 +191,7 @@ function Overlay({ children, onClose, title }: { children: React.ReactNode; onCl
   return (
     <dialog ref={ref} onClose={onClose} className="m-0 h-dvh max-h-none w-full max-w-none bg-ink p-0 text-ivory backdrop:bg-ink" aria-label={title}>
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
           <p className="font-semibold">{title}</p>
           <button onClick={onClose} className="rounded-md p-2 hover:bg-white/10" aria-label="Close">
             <X className="size-5" />
@@ -186,11 +207,13 @@ function Overlay({ children, onClose, title }: { children: React.ReactNode; onCl
 
 function LiveCamera({
   facing,
+  maxEdge,
   onCapture,
   onClose,
   onUnavailable,
 }: {
   facing: "user" | "environment";
+  maxEdge: number;
   onCapture: (c: HTMLCanvasElement) => void;
   onClose: () => void;
   onUnavailable: () => void;
@@ -203,7 +226,7 @@ function LiveCamera({
     let stream: MediaStream | null = null;
     let cancelled = false;
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: mode }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .getUserMedia({ video: { facingMode: { ideal: mode }, width: { ideal: maxEdge > MAX_EDGE ? 3840 : 1920 }, height: { ideal: maxEdge > MAX_EDGE ? 2160 : 1080 } }, audio: false })
       .then((s) => {
         if (cancelled) {
           s.getTracks().forEach((t) => t.stop());
@@ -223,12 +246,12 @@ function LiveCamera({
       cancelled = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [mode, onUnavailable]);
+  }, [mode, maxEdge, onUnavailable]);
 
   const capture = () => {
     const v = video.current;
     if (!v || !v.videoWidth) return;
-    const scale = Math.min(1, MAX_EDGE / Math.max(v.videoWidth, v.videoHeight));
+    const scale = Math.min(1, maxEdge / Math.max(v.videoWidth, v.videoHeight));
     const c = document.createElement("canvas");
     c.width = Math.round(v.videoWidth * scale);
     c.height = Math.round(v.videoHeight * scale);
@@ -347,7 +370,7 @@ function Redactor({ image, instruction, onCancel, onDone }: { image: Blob; instr
           }}
         />
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-4">
+      <div className="flex flex-wrap items-center justify-center gap-3 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <Button variant="ghost" className="text-ivory hover:bg-white/10 hover:text-ivory" icon={<RotateCcw className="size-4" />} disabled={!rects.length} onClick={() => setRects((r) => r.slice(0, -1))}>
           Undo
         </Button>

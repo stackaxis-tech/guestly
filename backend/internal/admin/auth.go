@@ -1,4 +1,4 @@
-// Package admin is the Guestly platform console: super admins manage hotel
+// Package admin is the Guestlog platform console: super admins manage hotel
 // clients, their properties and logos, subscriptions, and payments.
 package admin
 

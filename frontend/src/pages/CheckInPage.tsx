@@ -1,19 +1,22 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, BadgeCheck, Plus, Search, Trash2, UserRound } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowLeft, BadgeCheck, Loader2, Plus, Search, Trash2, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CameraCapture } from "../components/CameraCapture";
 import { Button, Card, Disclosure, ErrorNote, Field, Input, Select, Stepper, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { clock12, rupees, toPaise } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
+import { addDays as bookingAddDays, hotelToday, useReservation } from "../lib/reservations";
 import { useRooms } from "../lib/rooms";
 import {
   COUNTRIES,
   docTypeLabel,
   formatPhone,
+  scanAadhaar,
   uploadGuestImage,
+  type AadhaarDetails,
   type DocType,
   type Guest,
   type GuestDocument,
@@ -53,14 +56,6 @@ const emptyDoc = (nationality = "IN"): DocForm => ({
   visaExpiry: "",
 });
 
-function addDays(d: Date, n: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function isoDate(d: Date) {
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-}
 function nightsBetween(fromISO: string, toISO: string) {
   const a = new Date(fromISO + "T00:00:00");
   const b = new Date(toISO + "T00:00:00");
@@ -129,7 +124,94 @@ function PersonFields({ value, onChange, errors, prefix, compact }: { value: Per
   );
 }
 
-function DocFields({ value, onChange, errors, prefix, nationality }: { value: DocForm; onChange: (d: DocForm) => void; errors: Errors; prefix: string; nationality: string }) {
+/** Fills empty fields from an Aadhaar scan. Differing values are kept unless forced, and reported as conflicts. */
+function mergeScan(p: PersonForm, d: AadhaarDetails, force: boolean): { next: PersonForm; conflicts: string[] } {
+  const next = { ...p };
+  const conflicts: string[] = [];
+  const fields: [keyof PersonForm, string, string][] = [
+    ["name", d.name, "name"],
+    ["gender", d.gender, "gender"],
+    ["birthYear", d.birthYear ? String(d.birthYear) : "", "year of birth"],
+    ["address", d.address, "address"],
+  ];
+  for (const [key, scanned, label] of fields) {
+    if (!scanned) continue;
+    const current = p[key].trim();
+    if (!current || force) next[key] = scanned;
+    else if (current.toLowerCase() !== scanned.toLowerCase()) conflicts.push(label);
+  }
+  return { next, conflicts };
+}
+
+type ScanState =
+  | { state: "reading" }
+  | { state: "done"; details: AadhaarDetails; conflicts: string[] }
+  | { state: "failed"; message: string };
+
+function ScanNote({ scan, onUseAadhaar }: { scan: ScanState; onUseAadhaar: () => void }) {
+  if (scan.state === "reading") {
+    return (
+      <p className="flex items-center gap-2 rounded-lg bg-sand/60 px-3 py-2 text-sm text-ink-soft" role="status">
+        <Loader2 className="size-4 animate-spin" aria-hidden /> Reading Aadhaar…
+      </p>
+    );
+  }
+  if (scan.state === "failed") {
+    return (
+      <p className="rounded-lg bg-marigold-50 px-3 py-2 text-sm text-marigold-700" role="status">
+        {scan.message}
+      </p>
+    );
+  }
+  return (
+    <div className="rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800" role="status">
+      <p className="flex items-center gap-2 font-medium">
+        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Filled from Aadhaar, please check the details.
+      </p>
+      {scan.conflicts.length > 0 && (
+        <p className="mt-1">
+          Aadhaar shows a different {scan.conflicts.join(", ")}.{" "}
+          <button type="button" className="font-semibold underline" onClick={onUseAadhaar}>
+            Use Aadhaar details
+          </button>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DocFields({
+  value,
+  onChange,
+  errors,
+  prefix,
+  nationality,
+  onScanned,
+}: {
+  value: DocForm;
+  onChange: (d: DocForm) => void;
+  errors: Errors;
+  prefix: string;
+  nationality: string;
+  onScanned: (d: AadhaarDetails, force: boolean) => string[];
+}) {
+  const propertyId = useCurrentProperty().id;
+  const [scan, setScan] = useState<ScanState | null>(null);
+  // A scan finishes after the photo step, so it must merge into the latest form values.
+  const latest = useRef(value);
+  latest.current = value;
+  const runScan = (b: Blob) => {
+    setScan((s) => (s?.state === "done" ? s : { state: "reading" }));
+    scanAadhaar(propertyId, b)
+      .then((details) => {
+        if (details.last4 && !latest.current.number.trim()) onChange({ ...latest.current, number: details.last4 });
+        setScan({ state: "done", details, conflicts: onScanned(details, false) });
+      })
+      .catch((err: unknown) => {
+        // The QR is on only one side of many cards, so a miss must not undo a good scan.
+        setScan((s) => (s?.state === "done" ? s : { state: "failed", message: err instanceof Error ? err.message : "Couldn't read the QR code. Please type the details." }));
+      });
+  };
   const foreign = nationality !== "IN";
   const aadhaar = value.type === "aadhaar";
   return (
@@ -169,12 +251,13 @@ function DocFields({ value, onChange, errors, prefix, nationality }: { value: Do
       <div className="grid gap-5 sm:grid-cols-2">
         <CameraCapture
           label="Front of ID"
-          hint="Fill the frame with the card"
+          hint={value.type === "aadhaar" ? "Keep the QR code sharp to auto-fill" : "Fill the frame with the card"}
           facing="environment"
           value={value.front}
           onChange={(b) => onChange({ ...value, front: b })}
           error={errors[prefix + "frontUploadId"]}
-          redact={aadhaar ? { instruction: "Drag a box over the first 8 digits of the Aadhaar number. Only the last 4 should stay visible." } : undefined}
+          redact={aadhaar ? { instruction: "Drag a box over the first 8 digits of the Aadhaar number. Only the last 4 should stay visible. On older cards, cover the QR code too." } : undefined}
+          onScan={aadhaar ? runScan : undefined}
         />
         <CameraCapture
           label="Back of ID (optional)"
@@ -182,9 +265,20 @@ function DocFields({ value, onChange, errors, prefix, nationality }: { value: Do
           value={value.back}
           onChange={(b) => onChange({ ...value, back: b })}
           error={errors[prefix + "backUploadId"]}
-          redact={aadhaar ? { instruction: "If the Aadhaar number appears on the back, cover the first 8 digits." } : undefined}
+          redact={aadhaar ? { instruction: "If the Aadhaar number appears on the back, cover the first 8 digits. On older cards, cover the QR code too." } : undefined}
+          onScan={aadhaar ? runScan : undefined}
         />
       </div>
+      {aadhaar && scan && (
+        <ScanNote
+          scan={scan}
+          onUseAadhaar={() => {
+            if (scan.state !== "done") return;
+            onScanned(scan.details, true);
+            setScan({ ...scan, conflicts: [] });
+          }}
+        />
+      )}
       {foreign && (
         <div className="grid gap-4 rounded-lg bg-sand/60 p-4 sm:grid-cols-2">
           <p className="text-sm text-ink-soft sm:col-span-2">Foreign national: you'll need to file Form C within 24 hours.</p>
@@ -219,11 +313,21 @@ export function CheckInPage() {
   const [doc, setDoc] = useState<DocForm>(emptyDoc());
   // Companions
   const [companions, setCompanions] = useState<Companion[]>([]);
+  // Aadhaar scans finish asynchronously and need the latest values.
+  const personRef = useRef(person);
+  personRef.current = person;
+  const companionsRef = useRef(companions);
+  companionsRef.current = companions;
   // Stay
-  const ready = useMemo(() => (rooms.data?.rooms ?? []).filter((r) => r.status === "ready"), [rooms.data]);
+  // Rooms held for another booking today aren't offered.
+  const ready = useMemo(
+    () => (rooms.data?.rooms ?? []).filter((r) => r.status === "ready" && (!r.reservationId || r.reservationId === params.get("reservation"))),
+    [rooms.data, params],
+  );
   const [roomId, setRoomId] = useState(params.get("room") ?? "");
-  const today = isoDate(new Date());
-  const [checkout, setCheckout] = useState(isoDate(addDays(new Date(), 1)));
+  const today = hotelToday();
+  const tomorrow = bookingAddDays(today, 1);
+  const [checkout, setCheckout] = useState(tomorrow);
   const [rate, setRate] = useState("");
   const [adults, setAdults] = useState("1");
   const [children, setChildren] = useState("0");
@@ -240,14 +344,36 @@ export function CheckInPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [progress, setProgress] = useState("");
 
+  // Arriving on a booking: carry its details into the form once.
+  const reservationId = params.get("reservation");
+  const booking = useReservation(pid, reservationId);
+  const reservation = booking.data?.status === "booked" ? booking.data : undefined;
+  const applied = useRef(false);
+
   // Default room + rate
   useEffect(() => {
-    if (!roomId && ready[0]) setRoomId(ready[0].id);
-  }, [ready, roomId]);
+    if (!roomId && ready[0] && !reservationId) setRoomId(ready[0].id);
+  }, [ready, roomId, reservationId]);
   const room = ready.find((r) => r.id === roomId);
   useEffect(() => {
-    if (room) setRate(String(room.baseRate / 100));
-  }, [room]);
+    if (!room) return;
+    // The rate agreed at booking stands, even if the guest has to move rooms.
+    setRate(String((reservation ? reservation.nightlyRate : room.baseRate) / 100));
+  }, [room, reservation]);
+  useEffect(() => {
+    if (!reservation || applied.current || !rooms.data) return;
+    applied.current = true;
+    const stillReady = ready.some((r) => r.id === reservation.roomId);
+    setRoomId(stillReady ? reservation.roomId : ready[0]?.id ?? "");
+    setCheckout(reservation.checkOut > today ? reservation.checkOut : tomorrow);
+    setAdults(String(reservation.adults));
+    setChildren(String(reservation.children));
+    setConsent(reservation.whatsappConsent);
+    setPhone(formatPhone(reservation.guestPhone));
+    void findGuest(reservation.guestPhone, reservation.guestName);
+    // findGuest only uses values passed in or stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservation, rooms.data, ready]);
   useEffect(() => {
     setAdults(String(Math.max(1, 1 + companions.length)));
   }, [companions.length]);
@@ -256,8 +382,8 @@ export function CheckInPage() {
     if (person.nationality !== "IN" && doc.type !== "passport") setDoc((d) => ({ ...d, type: "passport" }));
   }, [person.nationality, doc.type]);
 
-  const findGuest = async () => {
-    if (phone.replace(/\D/g, "").length < 10) {
+  const findGuest = async (number = phone, bookedName = "") => {
+    if (number.replace(/\D/g, "").length < 10) {
       setErrors((e) => ({ ...e, "guest.phone": "Enter the guest's 10-digit mobile number." }));
       return;
     }
@@ -265,7 +391,7 @@ export function CheckInPage() {
     setLookup({ state: "loading" });
     try {
       const r = await api<{ phone: string; guest: Guest | null; documents?: GuestDocument[] }>(
-        `/properties/${pid}/guests/lookup?phone=${encodeURIComponent(phone)}`,
+        `/properties/${pid}/guests/lookup?phone=${encodeURIComponent(number)}`,
       );
       if (r.guest) {
         const g = r.guest;
@@ -276,6 +402,7 @@ export function CheckInPage() {
       } else {
         setLookup({ state: "new" });
         setUseDocOnFile(false);
+        if (bookedName) setPerson((p) => ({ ...p, name: bookedName }));
       }
     } catch (err) {
       setLookup({ state: "idle" });
@@ -371,12 +498,15 @@ export function CheckInPage() {
           notes,
           advance: amount > 0 ? { amount, mode, reference } : null,
           whatsappConsent: consent,
+          reservationId: reservation?.id ?? "",
         },
       });
     },
     onSuccess: (stay) => {
       qc.invalidateQueries({ queryKey: ["rooms", pid] });
       qc.invalidateQueries({ queryKey: ["stays", pid] });
+      qc.invalidateQueries({ queryKey: ["reservations", pid] });
+      qc.invalidateQueries({ queryKey: ["reservation", pid] });
       navigate(`/stays/${stay.id}?checkedIn=1`, { replace: true });
     },
     onError: (err) => {
@@ -402,6 +532,19 @@ export function CheckInPage() {
         <p className="mt-1 text-[15px] text-muted">Start with the guest's mobile number. Returning guests fill in automatically.</p>
       </header>
 
+      {reservationId && booking.data && !reservation && <div className="mb-4"><ErrorNote message="This booking has already been checked in or closed. Continue only for a new walk-in." /></div>}
+      {reservation && (
+        <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800" role="status">
+          Checking in the booking for <strong>{reservation.guestName}</strong>, Room {reservation.roomNumber}.
+          {reservation.advanceAmount > 0 && ` ${rupees(reservation.advanceAmount)} advance from the booking is added automatically.`}
+          {rooms.data && !ready.some((r) => r.id === reservation.roomId) && (
+            <span className="mt-1 block font-semibold text-marigold-700">
+              Room {reservation.roomNumber} isn't ready yet, so another room is selected below. Mark it ready on the Rooms page to use it, or keep the room below at the booked rate.
+            </span>
+          )}
+        </div>
+      )}
+
       <form
         noValidate
         className="flex flex-col gap-5"
@@ -413,9 +556,10 @@ export function CheckInPage() {
       >
         <Section n={1} title="Guest" aside={found && <span className="flex items-center gap-1 text-sm font-semibold text-ready"><BadgeCheck className="size-4" /> Returning guest</span>}>
           <div className="flex flex-col gap-5">
-            <div className="flex items-end gap-2">
-              <Field label="Mobile number" error={errors["guest.phone"]} className="flex-1" hint="10-digit Indian mobile, or + country code for foreign numbers.">
-                {(id, d) => (
+            <Field label="Mobile number" error={errors["guest.phone"]} hint="10-digit Indian mobile, or + country code for foreign numbers.">
+              {(id, d) => (
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
                   <Input
                     id={id}
                     aria-describedby={d}
@@ -436,12 +580,13 @@ export function CheckInPage() {
                       }
                     }}
                   />
-                )}
-              </Field>
-              <Button type="button" variant="secondary" className="mb-[26px]" icon={<Search className="size-4" />} loading={lookup.state === "loading"} onClick={findGuest}>
+                  </div>
+                  <Button type="button" variant="secondary" icon={<Search className="size-4" />} loading={lookup.state === "loading"} onClick={() => findGuest()}>
                 Find
               </Button>
-            </div>
+                </div>
+              )}
+            </Field>
 
             {found && lookup.guest && (
               <div className="flex items-center gap-3 rounded-lg bg-teal-50 px-4 py-3 text-sm text-teal-800">
@@ -451,20 +596,6 @@ export function CheckInPage() {
                   in; check they're still correct.
                 </span>
               </div>
-            )}
-
-            {showDetails && (
-              <>
-                <PersonFields value={person} onChange={setPerson} errors={errors} prefix="guest." />
-                <CameraCapture
-                  label={found && lookup.guest?.hasPhoto ? "New guest photo (optional, a photo is on file)" : "Guest photo (recommended)"}
-                  facing="user"
-                  shape="portrait"
-                  value={photo}
-                  onChange={setPhoto}
-                  error={errors["guest.photoUploadId"]}
-                />
-              </>
             )}
           </div>
         </Section>
@@ -487,11 +618,38 @@ export function CheckInPage() {
                   ))}
                 </div>
               )}
-              {!useDocOnFile && <DocFields value={doc} onChange={setDoc} errors={errors} prefix="document." nationality={person.nationality} />}
+              {!useDocOnFile && (
+                <DocFields
+                  value={doc}
+                  onChange={setDoc}
+                  errors={errors}
+                  prefix="document."
+                  nationality={person.nationality}
+                  onScanned={(d, force) => {
+                    const { next, conflicts } = mergeScan(personRef.current, d, force);
+                    setPerson(next);
+                    return conflicts;
+                  }}
+                />
+              )}
+            </Section>
+
+            <Section n={3} title="Guest details">
+              <div className="flex flex-col gap-5">
+                <PersonFields value={person} onChange={setPerson} errors={errors} prefix="guest." />
+                <CameraCapture
+                  label={found && lookup.guest?.hasPhoto ? "New guest photo (optional, a photo is on file)" : "Guest photo (recommended)"}
+                  facing="user"
+                  shape="portrait"
+                  value={photo}
+                  onChange={setPhoto}
+                  error={errors["guest.photoUploadId"]}
+                />
+              </div>
             </Section>
 
             <Section
-              n={3}
+              n={4}
               title="Other guests in the room"
               aside={
                 <Button
@@ -526,7 +684,21 @@ export function CheckInPage() {
                         </label>
                         {c.addId && (
                           <div className="mt-4">
-                            <DocFields value={c.doc} onChange={(d) => update({ doc: d })} errors={errors} prefix={`companions.${i}.document.`} nationality={c.person.nationality} />
+                            <DocFields
+                              value={c.doc}
+                              onChange={(d) => update({ doc: d })}
+                              errors={errors}
+                              prefix={`companions.${i}.document.`}
+                              nationality={c.person.nationality}
+                              onScanned={(d, force) => {
+                                // Companions only record a name; other scanned fields aren't sent.
+                                const cur = companionsRef.current.find((x) => x.key === c.key);
+                                if (!cur) return [];
+                                const { next, conflicts } = mergeScan({ ...emptyPerson(), name: cur.person.name }, { ...d, gender: "", birthYear: null, address: "" }, force);
+                                setCompanions((cs) => cs.map((x) => (x.key === c.key ? { ...x, person: { ...x.person, name: next.name } } : x)));
+                                return conflicts;
+                              }}
+                            />
                           </div>
                         )}
                       </div>
@@ -536,7 +708,7 @@ export function CheckInPage() {
               )}
             </Section>
 
-            <Section n={4} title="Room & stay">
+            <Section n={5} title="Room & stay">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Room" error={errors.roomId} className="sm:col-span-2">
                   {(id, d) =>
@@ -557,7 +729,7 @@ export function CheckInPage() {
                 </Field>
                 <Field label="Checkout date" error={errors.expectedCheckOutAt} hint={`${nights} ${nights === 1 ? "night" : "nights"} · checkout at ${clock12(property.checkOutTime)}`}>
                   {(id, d) => (
-                    <Input id={id} aria-describedby={d} type="date" min={isoDate(addDays(new Date(), 1))} value={checkout} onChange={(e) => setCheckout(e.target.value)} invalid={!!errors.expectedCheckOutAt} />
+                    <Input id={id} aria-describedby={d} type="date" min={tomorrow} value={checkout} onChange={(e) => setCheckout(e.target.value)} invalid={!!errors.expectedCheckOutAt} />
                   )}
                 </Field>
                 <Field label="Rate per night (before GST)" error={errors.nightlyRate}>
@@ -600,9 +772,9 @@ export function CheckInPage() {
               </div>
             </Section>
 
-            <Section n={5} title="Advance payment">
+            <Section n={6} title="Advance payment">
               <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Amount received" optional error={errors["advance.amount"]}>
+                <Field label={reservation?.advanceAmount ? "Extra amount received now" : "Amount received"} optional error={errors["advance.amount"]}>
                   {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" placeholder="0" value={advance} onChange={(e) => setAdvance(e.target.value)} />}
                 </Field>
                 <Field label="Method" error={errors["advance.mode"]}>
@@ -642,12 +814,22 @@ export function CheckInPage() {
             )}
             {/* Spacer so the fixed bar never covers the last section */}
             <div className="h-20" aria-hidden />
-            <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 border-t border-line bg-paper/95 px-4 py-3 shadow-[0_-8px_24px_-12px_rgb(26_36_35/0.18)] backdrop-blur lg:bottom-0 lg:left-[248px]">
+            <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-paper/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(26_36_35/0.18)] backdrop-blur lg:left-[248px]">
               <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 lg:px-6">
-              <span className="mr-auto min-w-0 truncate text-sm text-muted">
-                {progress || (room ? `Room ${room.number} · ${nights} ${nights === 1 ? "night" : "nights"} · ${rupees(roomTotal)}` : "")}
-              </span>
-              <Link to="/">
+              {progress ? (
+                <span className="mr-auto min-w-0 truncate text-sm text-muted">{progress}</span>
+              ) : (
+                room && (
+                  <span className="mr-auto min-w-0">
+                    <span className="tabular block font-display text-lg leading-tight font-semibold">{rupees(roomTotal)}</span>
+                    <span className="block truncate text-xs text-muted">
+                      Room {room.number} · {nights} {nights === 1 ? "night" : "nights"}
+                    </span>
+                  </span>
+                )
+              )}
+              {/* On phones the "Today" link at the top is the way back. */}
+              <Link to="/" className="hidden sm:block">
                 <Button type="button" variant="secondary">Cancel</Button>
               </Link>
               <Button type="submit" loading={submit.isPending} disabled={ready.length === 0}>

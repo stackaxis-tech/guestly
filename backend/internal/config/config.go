@@ -29,7 +29,7 @@ func Load() Config {
 		JWTSecret:      []byte(env("JWT_SECRET", "dev-only-change-me-dev-only-change-me")),
 		AccessTTL:      15 * time.Minute,
 		RefreshTTL:     30 * 24 * time.Hour,
-		AllowedOrigins: strings.Split(env("ALLOWED_ORIGINS", "http://localhost:5180"), ","),
+		AllowedOrigins: strings.Split(env("ALLOWED_ORIGINS", "http://localhost:5180,capacitor://localhost,https://localhost"), ","),
 		SecureCookies:  env("SECURE_COOKIES", "false") == "true",
 		AppURL:         env("APP_URL", "http://localhost:5180"),
 		PublicAPIURL:   env("PUBLIC_API_URL", "http://localhost:8080/api/v1"),

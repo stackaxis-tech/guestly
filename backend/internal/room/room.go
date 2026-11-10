@@ -166,18 +166,23 @@ type Room struct {
 	StayID             *string    `json:"stayId"`
 	GuestName          *string    `json:"guestName"`
 	ExpectedCheckOutAt *time.Time `json:"expectedCheckOutAt"`
+	// Set while a booking holds this room for today (including late arrivals).
+	ReservationID *string `json:"reservationId"`
+	ReservedFor   *string `json:"reservedFor"`
 }
 
 const roomSelect = `SELECT r.id, r.number, r.floor, r.status, r.notes, t.id, t.name, t.bed_type, t.base_rate,
-		s.id, g.name, s.expected_check_out_at
+		s.id, g.name, s.expected_check_out_at, b.id, b.guest_name
 	FROM rooms r JOIN room_types t ON t.id = r.room_type_id
 	LEFT JOIN stays s ON s.room_id = r.id AND s.status = 'in_house'
-	LEFT JOIN guests g ON g.id = s.guest_id`
+	LEFT JOIN guests g ON g.id = s.guest_id
+	LEFT JOIN reservations b ON b.room_id = r.id AND b.status = 'booked'
+		AND b.check_in <= (now() AT TIME ZONE 'Asia/Kolkata')::date AND b.check_out > (now() AT TIME ZONE 'Asia/Kolkata')::date`
 
 func scanRoom(row pgx.Row) (Room, error) {
 	var rm Room
 	err := row.Scan(&rm.ID, &rm.Number, &rm.Floor, &rm.Status, &rm.Notes, &rm.RoomTypeID, &rm.TypeName, &rm.BedType, &rm.BaseRate,
-		&rm.StayID, &rm.GuestName, &rm.ExpectedCheckOutAt)
+		&rm.StayID, &rm.GuestName, &rm.ExpectedCheckOutAt, &rm.ReservationID, &rm.ReservedFor)
 	return rm, err
 }
 
@@ -318,6 +323,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) error {
 		chi.URLParam(r, "roomID"), property.ID(r.Context())).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return httpx.Conflict("Room not found, or it's occupied. Check the guest out before removing it.")
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		return httpx.Conflict("This room has past stays or bookings, so it can't be removed.")
 	}
 	if err != nil {
 		return err

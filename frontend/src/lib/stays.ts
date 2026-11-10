@@ -123,6 +123,15 @@ export async function uploadGuestImage(propertyId: string, file: Blob, kind: "ph
   return r.id;
 }
 
+export type AadhaarDetails = { name: string; gender: string; birthYear: number | null; address: string; last4: string };
+
+/** Reads the QR on an Aadhaar photo. The server keeps neither the image nor the result. */
+export function scanAadhaar(propertyId: string, file: Blob): Promise<AadhaarDetails> {
+  const fd = new FormData();
+  fd.append("file", file, "aadhaar.jpg");
+  return api<AadhaarDetails>(`/properties/${propertyId}/guests/scan-aadhaar`, { method: "POST", form: fd });
+}
+
 /** Loads an encrypted guest image as an object URL. Caller must revoke it. */
 export async function loadSecureImage(path: string): Promise<string> {
   return URL.createObjectURL(await hotel.blob(path));

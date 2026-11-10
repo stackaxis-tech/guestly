@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -19,10 +20,10 @@ const refreshCookie = "guestly_refresh"
 // DummyHash is compared against when a login can't succeed, to keep timing uniform.
 var DummyHash, _ = bcrypt.GenerateFromPassword([]byte("not-a-real-password"), bcrypt.DefaultCost)
 
-var errSuspended = httpx.Forbidden("This account is paused. Please contact Guestly support.")
+var errSuspended = httpx.Forbidden("This account is paused. Please contact Guestlog support.")
 
 // Handler serves hotel-staff authentication. Hotels can't self-register:
-// accounts are created by a Guestly admin and activated through an invite.
+// accounts are created by a Guestlog admin and activated through an invite.
 type Handler struct {
 	DB            *pgxpool.Pool
 	Tokens        *Tokens
@@ -41,6 +42,32 @@ type User struct {
 type session struct {
 	AccessToken string `json:"accessToken"`
 	User        User   `json:"user"`
+	// Only set for the mobile apps, which can't use the httpOnly cookie.
+	RefreshToken string `json:"refreshToken,omitempty"`
+}
+
+// isMobile reports whether the request comes from the Guestlog Android/iOS app.
+func isMobile(r *http.Request) bool {
+	return r.Header.Get("X-Client") == "mobile"
+}
+
+// presentedRefreshToken returns the refresh token from the JSON body for the
+// mobile apps, and from the httpOnly cookie for browsers. Browsers can never
+// authenticate with a body token, so cookie protections can't be sidestepped.
+func presentedRefreshToken(r *http.Request) string {
+	if isMobile(r) {
+		var body struct {
+			RefreshToken string `json:"refreshToken"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(nil, r.Body, 4096)).Decode(&body) != nil {
+			return ""
+		}
+		return body.RefreshToken
+	}
+	if c, err := r.Cookie(refreshCookie); err == nil {
+		return c.Value
+	}
+	return ""
 }
 
 type loginReq struct {
@@ -79,19 +106,19 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
 
 // Refresh rotates the refresh token and issues a new access token.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) error {
-	c, err := r.Cookie(refreshCookie)
-	if err != nil || c.Value == "" {
+	raw := presentedRefreshToken(r)
+	if raw == "" {
 		return httpx.Unauthorized("Please sign in.")
 	}
 	ctx := r.Context()
 	var u User
 	var orgStatus string
-	err = h.DB.QueryRow(ctx, `
+	err := h.DB.QueryRow(ctx, `
 		UPDATE refresh_tokens rt SET revoked_at = now()
 		FROM users u JOIN organizations o ON o.id = u.organization_id
 		WHERE rt.token_hash = $1 AND rt.revoked_at IS NULL AND rt.expires_at > now() AND u.id = rt.user_id
 		RETURNING u.id, u.organization_id, u.name, u.email, u.role, o.status`,
-		HashToken(c.Value)).Scan(&u.ID, &u.OrgID, &u.Name, &u.Email, &u.Role, &orgStatus)
+		HashToken(raw)).Scan(&u.ID, &u.OrgID, &u.Name, &u.Email, &u.Role, &orgStatus)
 	if errors.Is(err, pgx.ErrNoRows) {
 		h.clearCookie(w)
 		return httpx.Unauthorized("Your session has ended. Please sign in again.")
@@ -107,8 +134,8 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) error {
-	if c, err := r.Cookie(refreshCookie); err == nil && c.Value != "" {
-		if _, err := h.DB.Exec(r.Context(), `UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL`, HashToken(c.Value)); err != nil {
+	if raw := presentedRefreshToken(r); raw != "" {
+		if _, err := h.DB.Exec(r.Context(), `UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL`, HashToken(raw)); err != nil {
 			return err
 		}
 	}
@@ -145,7 +172,7 @@ const inviteLookup = `
 	FROM invites i JOIN users u ON u.id = i.user_id JOIN organizations o ON o.id = u.organization_id
 	WHERE i.token_hash = $1 AND i.used_at IS NULL AND i.expires_at > now() AND o.status = 'active'`
 
-const inviteGone = "This invite link has expired or was already used. Ask Guestly for a new one."
+const inviteGone = "This invite link has expired or was already used. Ask Guestlog for a new one."
 
 // GetInvite lets the set-password page greet the invited person.
 func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) error {
@@ -224,11 +251,16 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User, s
 		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2,$3)`, u.ID, hash, expires); err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: refreshCookie, Value: raw, Path: "/api/v1/auth", Expires: expires,
-		HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteLaxMode,
-	})
-	httpx.JSON(w, status, session{AccessToken: access, User: u})
+	out := session{AccessToken: access, User: u}
+	if isMobile(r) {
+		out.RefreshToken = raw
+	} else {
+		http.SetCookie(w, &http.Cookie{
+			Name: refreshCookie, Value: raw, Path: "/api/v1/auth", Expires: expires,
+			HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteLaxMode,
+		})
+	}
+	httpx.JSON(w, status, out)
 	return nil
 }
 

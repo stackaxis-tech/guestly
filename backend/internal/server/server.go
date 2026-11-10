@@ -44,7 +44,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Client"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
@@ -90,6 +90,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 				r.Group(func(r chi.Router) {
 					r.Use(desk)
 					r.Method("POST", "/uploads", h(stayH.Upload))
+					r.Method("POST", "/guests/scan-aadhaar", h(stayH.ScanAadhaar))
 					r.Method("GET", "/guests", h(stayH.SearchGuests))
 					r.Method("GET", "/guests/lookup", h(stayH.Lookup))
 					r.Method("GET", "/guests/{guestID}", h(stayH.GetGuest))
@@ -110,6 +111,16 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 					r.Method("GET", "/stays/{stayID}/messages/{kind}", h(stayH.PreviewMessage))
 					r.Method("POST", "/stays/{stayID}/messages", h(stayH.LogMessage))
 
+					r.Method("GET", "/reservations", h(stayH.ListReservations))
+					r.Method("POST", "/reservations", h(stayH.CreateReservation))
+					r.Method("GET", "/reservations/availability", h(stayH.Availability))
+					r.Method("GET", "/reservations/{reservationID}", h(stayH.GetReservation))
+					r.Method("PUT", "/reservations/{reservationID}", h(stayH.UpdateReservation))
+					r.Method("POST", "/reservations/{reservationID}/cancel", h(stayH.CancelReservation))
+					r.Method("POST", "/reservations/{reservationID}/no-show", h(stayH.NoShowReservation))
+					r.Method("GET", "/reservations/{reservationID}/messages/booking", h(stayH.PreviewReservationMessage))
+					r.Method("POST", "/reservations/{reservationID}/messages", h(stayH.LogReservationMessage))
+
 					r.Method("GET", "/message-templates", h(stayH.ListTemplates))
 					r.With(managers).Method("PUT", "/message-templates/{kind}", h(stayH.SaveTemplate))
 					r.With(managers).Method("DELETE", "/message-templates/{kind}", h(stayH.ResetTemplate))
@@ -117,7 +128,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 			})
 		})
 
-		// ---- Guestly platform admin ----
+		// ---- Guestlog platform admin ----
 		r.Route("/admin", func(r chi.Router) {
 			r.Route("/auth", func(r chi.Router) {
 				r.Method("POST", "/login", h(adminH.Login))

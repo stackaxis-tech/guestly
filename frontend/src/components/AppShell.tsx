@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, BarChart3, BedDouble, ChevronsUpDown, Check, Clock, Home, LogOut, Settings, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronsUpDown, Check, Clock, Home, LogOut, Settings, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -10,11 +10,12 @@ import { roleLabel, useAuth } from "../lib/auth";
 import { initials } from "../lib/format";
 import { useProperty } from "../lib/property";
 
-const allNav = [
+const allNav: { to: string; label: string; short?: string; icon: typeof Home; end?: boolean; housekeeping: boolean; desktopOnly?: boolean }[] = [
   { to: "/", label: "Today", icon: Home, end: true, housekeeping: true },
   { to: "/rooms", label: "Rooms", icon: BedDouble, housekeeping: true },
   { to: "/guests", label: "Guests", icon: Users, housekeeping: false },
-  { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false },
+  { to: "/reservations", label: "Reservations", short: "Bookings", icon: CalendarDays, housekeeping: false },
+  { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false, desktopOnly: true },
   { to: "/settings", label: "Settings", icon: Settings, housekeeping: false },
 ];
 
@@ -26,6 +27,7 @@ function useNav() {
 export function AppShell() {
   const { current, isLoading, error, refetch } = useProperty();
   const nav = useNav();
+  const tabs = nav.filter((n) => !n.desktopOnly);
   const { pathname } = useLocation();
 
   return (
@@ -66,7 +68,7 @@ export function AppShell() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-paper/95 px-4 py-2.5 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-paper/95 px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 backdrop-blur lg:hidden">
         <LogoMark size={30} />
         <div className="min-w-0 flex-1">
           <PropertySwitcher compact />
@@ -92,12 +94,13 @@ export function AppShell() {
       </main>
 
       {/* Mobile bottom tabs */}
+      {pathname !== "/check-in" && (
       <nav
-        style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         className="fixed inset-x-0 bottom-0 z-20 grid border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] lg:hidden"
         aria-label="Main"
       >
-        {nav.map(({ to, label, icon: Icon, end }) => (
+        {tabs.map(({ to, label, short, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -114,12 +117,13 @@ export function AppShell() {
                 <span className={clsx("rounded-full px-4 py-1 transition-colors", isActive && "bg-teal-50")}>
                   <Icon className="size-5" aria-hidden />
                 </span>
-                {label}
+                {short ?? label}
               </>
             )}
           </NavLink>
         ))}
       </nav>
+      )}
     </div>
   );
 }
@@ -238,7 +242,7 @@ function UserMenu({ compact }: { compact?: boolean }) {
   );
 }
 
-/** Warns hotel staff about their Guestly plan: trial ending, grace period, or read-only. */
+/** Warns hotel staff about their Guestlog plan: trial ending, grace period, or read-only. */
 function BillingBanner() {
   const { current } = useProperty();
   const b = current?.billing;
@@ -249,16 +253,16 @@ function BillingBanner() {
   let text = "";
   if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
-    text = "Your Guestly plan has expired, so this property is read-only. Contact Guestly to renew and continue checking guests in.";
+    text = "Your Guestlog plan has expired, so this property is read-only. Contact Guestlog to renew and continue checking guests in.";
   } else if (b.state === "grace") {
     tone = "border-marigold-300 bg-marigold-50 text-marigold-700";
-    text = `Your Guestly plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
+    text = `Your Guestlog plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
   } else if (b.state === "trial" && b.daysLeft <= 7) {
     tone = "border-teal-200 bg-teal-50 text-teal-800";
     text = b.daysLeft === 0 ? "Your free trial ends today." : `Your free trial ends in ${days(b.daysLeft)}.`;
   } else if (b.state === "active" && b.daysLeft <= 7) {
     tone = "border-teal-200 bg-teal-50 text-teal-800";
-    text = b.daysLeft === 0 ? "Your Guestly plan renews today." : `Your Guestly plan is due for renewal in ${days(b.daysLeft)}.`;
+    text = b.daysLeft === 0 ? "Your Guestlog plan renews today." : `Your Guestlog plan is due for renewal in ${days(b.daysLeft)}.`;
   } else {
     return null;
   }

@@ -16,6 +16,8 @@ export type Room = {
   stayId: string | null;
   guestName: string | null;
   expectedCheckOutAt: string | null;
+  reservationId: string | null;
+  reservedFor: string | null;
 };
 
 export type RoomSummary = Record<RoomStatus | "total" | "floors", number>;

@@ -387,7 +387,7 @@ func (h *Handler) CreateClient(w http.ResponseWriter, r *http.Request) error {
 	err = tx.QueryRow(ctx, `INSERT INTO users (organization_id, name, email, phone, role) VALUES ($1,$2,$3,$4,'owner') RETURNING id`,
 		resp.ClientID, req.Owner.Name, req.Owner.Email, req.Owner.Phone).Scan(&ownerID)
 	if isUnique(err) {
-		return httpx.Invalid(map[string]string{"owner.email": "This email already has a Guestly account."})
+		return httpx.Invalid(map[string]string{"owner.email": "This email already has a Guestlog account."})
 	}
 	if err != nil {
 		return err

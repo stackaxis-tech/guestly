@@ -1,7 +1,9 @@
-# Guestly
+# Guestlog
 
 Front-desk / property management app for small **Indian** hotels, guesthouses, and homestays.
 Full plan: `~/.claude/plans/dont-use-artificats-i-woolly-wilkinson.md`.
+
+**Naming:** the product is **Guestlog** (renamed from Guestly). Use Guestlog in anything people read. Internal identifiers deliberately keep `guestly` (Go module path, Postgres user/db, cookies, JWT issuer, `GUESTLY_*` env vars, `~/guestly` on the VM, repo folder, and existing `@guestly.dev` logins); renaming them would risk live data or sign everyone out.
 
 ## Stack
 - `backend/`: Go, chi router, pgx (hand-written SQL, no ORM), goose migrations embedded and run on API start, JWT auth.
@@ -27,7 +29,7 @@ make test    # go vet + go test + tsc
 - Package per domain under `backend/internal/` (`auth`, `property`, `room`, …). Handlers return `error`, wrapped with `httpx.Handler`.
 - Return `httpx.Invalid(map[field]msg)` for form errors (422), so the frontend shows them inline; other helpers are `NotFound`, `Conflict`, `Forbidden`, etc.
 - Everything property-scoped lives under `/api/v1/properties/{propertyID}/…`. The `property.Access` middleware checks access; read the ID with `property.ID(ctx)`. Always filter queries by `property_id`.
-- **Two auth scopes**: hotel staff (`/api/v1/auth`, `users`) and Guestly super admins (`/api/v1/admin/auth`, `platform_admins`). The JWT `scope` claim is `hotel` or `platform`, and each middleware rejects the other scope. Hotels can't self-register: an admin creates the client, and the owner sets a password through `/invite/:token`.
+- **Two auth scopes**: hotel staff (`/api/v1/auth`, `users`) and Guestlog super admins (`/api/v1/admin/auth`, `platform_admins`). The JWT `scope` claim is `hotel` or `platform`, and each middleware rejects the other scope. Hotels can't self-register: an admin creates the client, and the owner sets a password through `/invite/:token`.
 - Subscriptions are **per property** (`internal/billing`). The `property.Access` middleware returns 402 `subscription_expired` on writes once the grace period is over, and 403 for suspended clients. Admin actions call `h.audit(...)`.
 - Files are stored via the `storage.Store` interface (`LocalStore` in `backend/var/uploads` for dev) and served only through HMAC-signed URLs (`storage.Signer`). Logos must be PNG/JPG/WebP ≤ 1 MB; SVG is rejected.
 - Roles: `owner` (all org properties), `manager`, `front_desk`, `housekeeping` (need a `property_members` row). Use `auth.RequireRole`.
@@ -49,12 +51,24 @@ make test    # go vet + go test + tsc
 - Mobile-first: bottom tabs below `lg`, sidebar at `lg` and up.
 - The admin console lives in `src/admin/` with its own API client (`adminClient`) and auth context. `App.tsx` switches between the hotel and admin apps by the `/admin` path.
 
+## Aadhaar auto-fill
+`POST /properties/{id}/guests/scan-aadhaar` reads the card's QR on our server (`internal/stay/aadhaar.go`, gozxing). Images are in memory only: never stored or logged. Only the last 4 digits ever leave the parser. No OCR or AI service; if the QR can't be read, staff retake the photo or type the details. Results are read from the QR, not verified with UIDAI.
+
+## Mobile apps (Capacitor, `frontend/ios` + `frontend/android`)
+- `make ios` / `make android`. App ID `tech.stackaxis.guestlog`. Hotel staff only: `/admin` is web-only. Native code paths check `isNative` (`src/lib/platform.ts`).
+- Native sessions: requests send `X-Client: mobile`, the refresh token comes back in JSON and lives in Keychain/Keystore (never web storage). Browsers keep the httpOnly cookie and can't use a body token.
+- "Powered by StackAxis" (`components/PoweredBy.tsx`) shows only in the apps for now.
+- Release builds need HTTPS for the API; iOS and Android block plain HTTP.
+
+## Reservations
+`internal/stay/reservations.go`, `src/pages/ReservationsPage.tsx`. Dates are `[check_in, check_out)`, so same-day turnover is allowed. A Postgres exclusion constraint on `(room_id, daterange)` is the final guard against double booking; walk-in check-in and stay extensions also refuse rooms promised to a booking. Check-in with `reservationId` moves the booking's advance into `stay_payments` exactly once. "Today" in the frontend must use `hotelToday()` (India time), never the device date.
+
 ## Build phases
 1. ✅ Foundation: auth, properties, room types, rooms and housekeeping, app shell, brand
-1.5 ✅ Guestly Super Admin: clients, per-property subscriptions, manual payments, logos, invites, read-only after grace
+1.5 ✅ Guestlog Super Admin: clients, per-property subscriptions, manual payments, logos, invites, read-only after grace
 2. ✅ Guests + secure ID (encrypted), check-in, checkout, payments
 3. GST invoices (numbering per financial year, CGST/SGST vs IGST), PDF, WhatsApp + share link
 4. Reviews: tokenized `/r/:token`. Every guest sees the Google review button, with an optional private note to the manager. **Never gate Google by rating** (Google policy).
 - Guest WhatsApp messaging is **click-to-send** (prefilled wa.me / WhatsApp Web link, staff press Send) with editable per-property templates. First messages: welcome (phase 2), bill link (phase 3), review request (phase 4). The Business API comes later.
-5. Reservations calendar, reports, Form C pending list
+5. ✅ Reservations calendar · still to do: reports, Form C pending list
 6. Subscription (Razorpay), PWA, polish

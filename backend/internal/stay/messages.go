@@ -28,6 +28,16 @@ type MessageKind struct {
 
 var messageKinds = []MessageKind{
 	{
+		Kind: "booking", Title: "Booking confirmation", When: "After a reservation is made", Available: true,
+		DefaultBody: "Hi {guest_name}, your booking at {hotel_name} is confirmed! 🙏\n\n" +
+			"Check-in: {checkin_date}, from {checkin_time}\n" +
+			"Checkout: {checkout_date}, by {checkout_time}\n" +
+			"Room: {room}\n" +
+			"Advance received: {advance}\n\n" +
+			"Find us: {map_link}\n" +
+			"Questions? Call or WhatsApp us at {hotel_phone}.",
+	},
+	{
 		Kind: "welcome", Title: "Welcome at check-in", When: "Right after check-in", Available: true,
 		DefaultBody: "Hi {guest_name}, welcome to {hotel_name}! 🙏\n\n" +
 			"Your room: {room}\n" +
@@ -61,7 +71,8 @@ func kindByName(k string) (MessageKind, bool) {
 // Variables available in templates, with a sample value for the settings preview.
 var templateVars = []struct{ Name, Sample string }{
 	{"guest_name", "Priya"}, {"hotel_name", "Lakeview Homestay"}, {"room", "203"},
-	{"checkin_date", "4 Nov"}, {"checkout_date", "6 Nov"}, {"checkout_time", "11:00 AM"},
+	{"checkin_date", "4 Nov"}, {"checkin_time", "12:00 PM"}, {"checkout_date", "6 Nov"}, {"checkout_time", "11:00 AM"},
+	{"advance", "₹1,000"},
 	{"wifi_name", "Lakeview-Guest"}, {"wifi_password", "welcome123"}, {"hotel_phone", "+91 98470 12345"},
 	{"map_link", "https://maps.google.com/?q=Lakeview+Homestay"}, {"amount", "₹7,350"},
 	{"invoice_link", "https://…/i/abc123"}, {"review_link", "https://…/r/abc123"},
@@ -108,6 +119,19 @@ type Template struct {
 	Enabled bool   `json:"enabled"`
 	Body    string `json:"body"`
 	Custom  bool   `json:"custom"`
+}
+
+func (h *Handler) template(ctx context.Context, kind string) (Template, error) {
+	ts, err := h.templates(ctx)
+	if err != nil {
+		return Template{}, err
+	}
+	for _, t := range ts {
+		if t.Kind == kind {
+			return t, nil
+		}
+	}
+	return Template{}, httpx.NotFound("Unknown message.")
 }
 
 func (h *Handler) templates(ctx context.Context) ([]Template, error) {
@@ -222,7 +246,7 @@ func formatClock(hhmm string) string {
 func (h *Handler) PreviewMessage(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	k, ok := kindByName(chi.URLParam(r, "kind"))
-	if !ok || !k.Available {
+	if !ok || !k.Available || k.Kind == "booking" {
 		return httpx.NotFound("This message isn't available yet.")
 	}
 	d, err := h.loadStay(ctx, chi.URLParam(r, "stayID"))
@@ -265,6 +289,8 @@ func (h *Handler) PreviewMessage(w http.ResponseWriter, r *http.Request) error {
 		"hotel_phone":   hotelPhone,
 		"map_link":      "https://maps.google.com/?q=" + url.QueryEscape(addr),
 		"amount":        rupeeText(d.Bill.Total),
+		"checkin_time":  formatClock(prop.CheckInTime),
+		"advance":       "",
 	}
 	p := preview{Kind: k.Kind, Phone: d.Guest.Phone, Body: Render(t.Body, vars), OpenIn: prop.FrontDesk.WhatsAppOpenIn,
 		Enabled: t.Enabled, Consent: d.Guest.WhatsAppConsent, Warnings: []string{}}

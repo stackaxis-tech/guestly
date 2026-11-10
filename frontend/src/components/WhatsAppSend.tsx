@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { isNative } from "../lib/platform";
 import { Button, ErrorNote, Field, Input, Sheet, Spinner, Textarea } from "./ui";
 
 type Preview = {
@@ -14,7 +15,7 @@ type Preview = {
   warnings: string[];
 };
 
-export const messageTitle: Record<string, string> = { welcome: "Welcome message", bill: "Bill", review: "Review request" };
+export const messageTitle: Record<string, string> = { booking: "Booking confirmation", welcome: "Welcome message", bill: "Bill", review: "Review request" };
 
 /** Builds a click-to-chat link. "web" forces WhatsApp Web; "app" lets the OS open the app (or web if none). */
 export function whatsappURL(phone: string, text: string, openIn: "app" | "web"): string {
@@ -25,13 +26,17 @@ export function whatsappURL(phone: string, text: string, openIn: "app" | "web"):
 
 /**
  * Preview → (edit) → open WhatsApp with the message typed → ask "Did it send?" → log it.
- * Guestly can't see inside WhatsApp, so the confirmation step keeps the record honest.
+ * Guestlog can't see inside WhatsApp, so the confirmation step keeps the record honest.
  */
-export function WhatsAppSend({ propertyId, stayId, kind, open, onClose }: { propertyId: string; stayId: string; kind: string; open: boolean; onClose: () => void }) {
+/** WhatsApp Web doesn't work on phones, so the mobile apps always open WhatsApp itself. */
+const target = (openIn: "app" | "web") => (isNative ? "app" : openIn);
+
+export function WhatsAppSend({ propertyId, stayId, reservationId, kind, open, onClose }: { propertyId: string; stayId?: string; reservationId?: string; kind: string; open: boolean; onClose: () => void }) {
+  const base = reservationId ? `/properties/${propertyId}/reservations/${reservationId}` : `/properties/${propertyId}/stays/${stayId}`;
   const qc = useQueryClient();
   const q = useQuery({
-    queryKey: ["message-preview", propertyId, stayId, kind],
-    queryFn: () => api<Preview>(`/properties/${propertyId}/stays/${stayId}/messages/${kind}`),
+    queryKey: ["message-preview", base, kind],
+    queryFn: () => api<Preview>(`${base}/messages/${kind}`),
     enabled: open,
     staleTime: 0,
   });
@@ -51,9 +56,9 @@ export function WhatsAppSend({ propertyId, stayId, kind, open, onClose }: { prop
 
   const log = useMutation({
     mutationFn: (status: "sent" | "skipped") =>
-      api(`/properties/${propertyId}/stays/${stayId}/messages`, { method: "POST", body: { kind, phone, body, status } }),
+      api(`${base}/messages`, { method: "POST", body: { kind, phone, body, status } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["stay", propertyId, stayId] });
+      qc.invalidateQueries({ queryKey: reservationId ? ["reservation", propertyId, reservationId] : ["stay", propertyId, stayId] });
       onClose();
     },
   });
@@ -84,7 +89,7 @@ export function WhatsAppSend({ propertyId, stayId, kind, open, onClose }: { prop
               disabled={!p || !phone || !body.trim()}
               icon={<MessageCircle className="size-4" />}
               onClick={() => {
-                window.open(whatsappURL(phone, body, p!.openIn), "_blank", "noopener");
+                window.open(whatsappURL(phone, body, target(p!.openIn)), "_blank", "noopener");
                 setOpened(true);
               }}
             >
@@ -106,7 +111,7 @@ export function WhatsAppSend({ propertyId, stayId, kind, open, onClose }: { prop
           </p>
           <p className="mt-3 text-muted">
             Nothing opened?{" "}
-            <a href={whatsappURL(phone, body, p!.openIn)} target="_blank" rel="noopener" className="font-semibold text-teal-700 hover:underline">
+            <a href={whatsappURL(phone, body, target(p!.openIn))} target="_blank" rel="noopener" className="font-semibold text-teal-700 hover:underline">
               Open WhatsApp again
             </a>
           </p>

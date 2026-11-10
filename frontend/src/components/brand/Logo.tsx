@@ -1,5 +1,5 @@
 /**
- * Guestly logo.
+ * Guestlog logo.
  *
  * The mark is an arched doorway whose threshold closes the bowl of a lowercase
  * "g" and whose right jamb drops into the descender. The marigold dot inside
@@ -49,7 +49,7 @@ export function Logo({ size = 32, className, tone = "brand" }: LogoProps) {
         )}
         style={{ fontSize: size * 0.72 }}
       >
-        guestly
+        guestlog
       </span>
     </span>
   );

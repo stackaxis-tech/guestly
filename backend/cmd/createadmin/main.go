@@ -1,6 +1,6 @@
-// Command createadmin creates (or resets the password of) a Guestly platform admin.
+// Command createadmin creates (or resets the password of) a Guestlog platform admin.
 //
-//	ADMIN_EMAIL=a@b.com ADMIN_PASSWORD=... ADMIN_NAME="Guestly Admin" createadmin
+//	ADMIN_EMAIL=a@b.com ADMIN_PASSWORD=... ADMIN_NAME="Guestlog Admin" createadmin
 package main
 
 import (
@@ -21,7 +21,7 @@ func main() {
 	password := os.Getenv("ADMIN_PASSWORD")
 	name := os.Getenv("ADMIN_NAME")
 	if name == "" {
-		name = "Guestly Admin"
+		name = "Guestlog Admin"
 	}
 	if email == "" || len(password) < 12 {
 		log.Fatal("set ADMIN_EMAIL and ADMIN_PASSWORD (at least 12 characters)")

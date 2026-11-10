@@ -18,7 +18,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
     return (
       <div className="mx-auto max-w-md py-16 text-center" role="alert">
         <h1 className="font-display text-2xl font-semibold">Something went wrong on this screen</h1>
-        <p className="mt-2 text-sm text-muted">Your data is safe. Reload to try again. If it keeps happening, tell Guestly support what you were doing.</p>
+        <p className="mt-2 text-sm text-muted">Your data is safe. Reload to try again. If it keeps happening, tell Guestlog support what you were doing.</p>
         <Button className="mt-6" onClick={() => location.reload()}>
           Reload
         </Button>

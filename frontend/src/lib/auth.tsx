@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [signedOut]);
 
-  const start = (s: Session) => {
-    hotel.setToken(s.accessToken);
+  const start = async (s: Session) => {
+    await hotel.adopt(s);
     setState({ status: "signedIn", user: s.user });
   };
 
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       acceptInvite: async (token, password) =>
         start(await api<Session>(`/invites/${token}/accept`, { method: "POST", body: { password } })),
       logout: async () => {
-        await api("/auth/logout", { method: "POST" }).catch(() => {});
+        await hotel.logout();
         signedOut();
       },
     }),

@@ -176,7 +176,7 @@ export function ClientsPage() {
     <>
       <PageHeader
         title="Clients"
-        description="Hotels and homestays using Guestly."
+        description="Hotels and homestays using Guestlog."
         actions={
           <Link to="/admin/clients/new">
             <Button icon={<Plus className="size-4" />}>New client</Button>
@@ -220,7 +220,7 @@ export function ClientsPage() {
           <EmptyState
             icon={<Building2 className="size-6" />}
             title={q.data!.length === 0 ? "No clients yet" : "No clients match"}
-            body={q.data!.length === 0 ? "Create your first hotel client to get them started on Guestly." : "Try a different search or filter."}
+            body={q.data!.length === 0 ? "Create your first hotel client to get them started on Guestlog." : "Try a different search or filter."}
             action={
               q.data!.length === 0 && (
                 <Link to="/admin/clients/new">
@@ -368,7 +368,7 @@ export function ActivityPage() {
   const q = useAudit();
   return (
     <>
-      <PageHeader title="Activity" description="Every change made in the Guestly console." />
+      <PageHeader title="Activity" description="Every change made in the Guestlog console." />
       {q.isLoading ? (
         <Spinner />
       ) : q.error ? (

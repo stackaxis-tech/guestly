@@ -7,6 +7,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.12.0
+	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/pressly/goose/v3 v3.29.0
 	golang.org/x/crypto v0.58.0
 )
@@ -20,4 +21,5 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 )

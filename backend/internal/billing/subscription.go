@@ -1,4 +1,4 @@
-// Package billing holds Guestly's own subscription rules for hotel clients:
+// Package billing holds Guestlog's own subscription rules for hotel clients:
 // subscription state, period extension on payment, and receipt numbering.
 package billing
 
@@ -85,7 +85,7 @@ func FinancialYear(t time.Time) string {
 	return fmt.Sprintf("%d-%02d", y, (y+1)%100)
 }
 
-// ReceiptNo formats a Guestly payment receipt number.
+// ReceiptNo formats a Guestlog payment receipt number.
 func ReceiptNo(fy string, n int) string {
 	return fmt.Sprintf("GST/%s/%04d", fy, n)
 }
