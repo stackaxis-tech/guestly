@@ -3,7 +3,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { initials } from "../lib/format";
 
-/** A hotel's own logo, falling back to its initials on brand teal. */
+/** A hotel's own logo, falling back to its initials on brand red. */
 export function PropertyLogo({ name, url, size = 32, className }: { name: string; url?: string; size?: number; className?: string }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [url]);
@@ -22,7 +22,7 @@ export function PropertyLogo({ name, url, size = 32, className }: { name: string
   return (
     <span
       style={{ ...style, fontSize: size * 0.4 }}
-      className={clsx("flex shrink-0 items-center justify-center rounded-md bg-teal-700 font-display font-semibold text-ivory", className)}
+      className={clsx("flex shrink-0 items-center justify-center rounded-md bg-sand font-display font-bold text-ink-soft", className)}
       aria-hidden
     >
       {initials(name) || "G"}
@@ -88,21 +88,21 @@ export function LogoPicker({
           disabled={busy}
           className={clsx(
             "group relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-colors",
-            message ? "border-danger" : "border-line-strong hover:border-teal-400 hover:bg-teal-50",
+            message ? "border-danger" : "border-line-strong hover:border-brand-400 hover:bg-brand-50",
           )}
           aria-label={shown ? "Change logo" : "Upload logo"}
         >
           {shown ? (
             <img src={shown} alt="" className="size-full bg-paper object-contain p-1.5" />
           ) : (
-            <ImagePlus className="size-6 text-muted group-hover:text-teal-600" aria-hidden />
+            <ImagePlus className="size-6 text-muted group-hover:text-brand-600" aria-hidden />
           )}
         </button>
         <div className="min-w-0 text-sm">
           <p className="font-medium text-ink">{shown ? `${name || "Hotel"} logo` : "Hotel logo"}</p>
           <p className="text-muted">PNG, JPG or WebP · under 1 MB · square works best</p>
           <div className="mt-1.5 flex gap-3">
-            <label htmlFor={id} className="cursor-pointer font-semibold text-teal-700 hover:underline">
+            <label htmlFor={id} className="cursor-pointer font-semibold text-brand-700 hover:underline">
               {shown ? "Replace" : "Choose image"}
             </label>
             {(file || (currentUrl && onRemove)) && (

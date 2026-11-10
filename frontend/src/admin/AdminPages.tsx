@@ -30,7 +30,7 @@ function Stat({ label, value, hint, tone, to }: { label: string; value: ReactNod
         {tone && <span className={clsx("size-2 rounded-full", tone)} aria-hidden />}
         <p className="text-sm font-medium text-ink-soft">{label}</p>
       </div>
-      <p className="tabular mt-2 font-display text-3xl font-semibold">{value}</p>
+      <p className="tabular mt-2 font-display text-3xl font-bold">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
     </Card>
   );
@@ -49,7 +49,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Guestlog console"
         title="Dashboard"
         description={`${d.counts.total} clients · ${d.properties} properties`}
         actions={
@@ -60,13 +60,13 @@ export function AdminDashboard() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card className="bg-teal-800 px-5 py-5 text-ivory">
-          <p className="text-sm text-teal-100">Collected this month</p>
-          <p className="tabular mt-1 font-display text-4xl font-semibold">{rupees(d.revenueThisMonth)}</p>
+        <Card className="border-ink bg-ink! px-5 py-5 text-white">
+          <p className="text-sm text-white/70">Collected this month</p>
+          <p className="tabular mt-1 font-display text-4xl font-bold">{rupees(d.revenueThisMonth)}</p>
         </Card>
         <Card className="px-5 py-5">
           <p className="text-sm text-muted">Collected in FY {d.financialYear}</p>
-          <p className="tabular mt-1 font-display text-4xl font-semibold">{rupees(d.revenueThisFY)}</p>
+          <p className="tabular mt-1 font-display text-4xl font-bold">{rupees(d.revenueThisFY)}</p>
         </Card>
       </div>
 
@@ -96,7 +96,7 @@ export function AdminDashboard() {
                       <span className="block truncate text-xs text-muted">{r.clientName}</span>
                     </span>
                     <span className="text-right">
-                      <span className={clsx("block text-xs font-semibold", r.state === "grace" || r.state === "expired" ? "text-danger" : "text-marigold-700")}>
+                      <span className={clsx("block text-xs font-semibold", r.state === "grace" || r.state === "expired" ? "text-danger" : "text-accent-700")}>
                         {r.state === "expired" || r.state === "grace"
                           ? `Ended ${relativeDays(r.daysLeft)}`
                           : `${r.state === "trial" ? "Trial ends" : "Renews"} ${relativeDays(r.daysLeft)}`}
@@ -113,7 +113,7 @@ export function AdminDashboard() {
         <Card>
           <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <h2 className="font-semibold">Recent payments</h2>
-            <Link to="/admin/payments" className="text-sm font-semibold text-teal-700 hover:underline">
+            <Link to="/admin/payments" className="text-sm font-semibold text-brand-700 hover:underline">
               View all
             </Link>
           </div>
@@ -174,7 +174,7 @@ export function ClientsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Guestlog console"
         title="Clients"
         description="Hotels and homestays using Guestlog."
         actions={
@@ -202,10 +202,10 @@ export function ClientsPage() {
               aria-pressed={state === f.key}
               className={clsx(
                 "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                state === f.key ? "border-teal-700 bg-teal-700 text-ivory" : "border-line-strong bg-paper text-ink-soft hover:bg-sand",
+                state === f.key ? "border-ink bg-ink text-white" : "border-line bg-paper text-ink-soft hover:border-line-strong hover:bg-sand",
               )}
             >
-              {f.label} <span className={clsx("tabular", state === f.key ? "text-teal-100" : "text-muted")}>{counts[f.key] ?? 0}</span>
+              {f.label} <span className={clsx("tabular", state === f.key ? "text-white/70" : "text-muted")}>{counts[f.key] ?? 0}</span>
             </button>
           ))}
         </div>
@@ -294,7 +294,7 @@ export function PaymentsTable({ payments, showClient = true }: { payments: Payme
               <td className="px-5 py-3 whitespace-nowrap">{formatDate(p.paidOn)}</td>
               {showClient && (
                 <td className="px-3 py-3">
-                  <Link to={`/admin/clients/${p.clientId}`} className="font-medium text-teal-700 hover:underline">
+                  <Link to={`/admin/clients/${p.clientId}`} className="font-medium text-brand-700 hover:underline">
                     {p.clientName}
                   </Link>
                 </td>
@@ -322,7 +322,7 @@ export function AdminPaymentsPage() {
   const total = (q.data ?? []).reduce((s, p) => s + p.amount, 0);
   return (
     <>
-      <PageHeader title="Payments" description="Every subscription payment recorded from clients." />
+      <PageHeader eyebrow="Guestlog console" title="Payments" description="Every subscription payment recorded from clients." />
       {q.isLoading ? (
         <Spinner />
       ) : q.error ? (
@@ -368,7 +368,7 @@ export function ActivityPage() {
   const q = useAudit();
   return (
     <>
-      <PageHeader title="Activity" description="Every change made in the Guestlog console." />
+      <PageHeader eyebrow="Guestlog console" title="Activity" description="Every change made in the Guestlog console." />
       {q.isLoading ? (
         <Spinner />
       ) : q.error ? (
@@ -389,7 +389,7 @@ export function ActivityPage() {
                       : "";
                 return (
                   <li key={e.id} className="flex gap-3 px-5 py-3 text-sm">
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-teal-400" aria-hidden />
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-400" aria-hidden />
                     <span className="min-w-0 flex-1">
                       <span className="font-semibold">{e.adminName}</span> {actionLabel[e.action] ?? e.action}{" "}
                       <span className="font-semibold">{e.targetName || "a deleted record"}</span>

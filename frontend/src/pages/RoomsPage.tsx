@@ -112,7 +112,7 @@ function Summary({ summary, filter, onFilter }: { summary: Record<string, number
       <Card className="flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
         <div>
           <p className="text-xs font-medium text-muted">Occupancy now</p>
-          <p className="tabular mt-0.5 font-display text-3xl font-semibold">
+          <p className="tabular mt-0.5 font-display text-3xl font-bold">
             {occupancy}
             <span className="text-lg text-muted">%</span>
           </p>
@@ -136,12 +136,12 @@ function Summary({ summary, filter, onFilter }: { summary: Record<string, number
             aria-pressed={filter === c.key}
             className={clsx(
               "flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-              filter === c.key ? "border-teal-700 bg-teal-700 text-ivory" : "border-line-strong bg-paper text-ink-soft hover:bg-sand",
+              filter === c.key ? "border-ink bg-ink text-white" : "border-line bg-paper text-ink-soft hover:border-line-strong hover:bg-sand",
             )}
           >
             {c.dot && <span className={clsx("size-2 rounded-full", c.dot)} aria-hidden />}
             {c.label}
-            <span className={clsx("tabular", filter === c.key ? "text-teal-100" : "text-muted")}>{c.count}</span>
+            <span className={clsx("tabular", filter === c.key ? "text-white/70" : "text-muted")}>{c.count}</span>
           </button>
         ))}
       </div>
@@ -154,16 +154,19 @@ function RoomTile({ room, onClick }: { room: Room; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group relative overflow-hidden rounded-xl border border-line bg-paper p-3.5 text-left shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md"
+      className="group relative overflow-hidden rounded-xl border border-line bg-paper p-3.5 pl-4.5 text-left transition-colors hover:border-line-strong hover:bg-sand/40"
     >
       <span className={clsx("absolute inset-y-0 left-0 w-1", m.bar)} aria-hidden />
       <div className="flex items-start justify-between gap-2">
-        <span className="tabular font-display text-2xl font-semibold">{room.number}</span>
-        <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-semibold", m.bg, m.text)}>{m.label}</span>
+        <span className="tabular font-display text-2xl font-bold">{room.number}</span>
+        <span className={clsx("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold", m.bg, m.text)}>
+          <span className={clsx("size-1.5 rounded-full", m.bar)} aria-hidden />
+          {m.label}
+        </span>
       </div>
       {room.reservedFor && !room.guestName ? (
         <>
-          <p className="mt-2 truncate text-[13px] font-semibold text-marigold-700">Held: {room.reservedFor}</p>
+          <p className="mt-2 truncate text-[13px] font-semibold text-accent-700">Held: {room.reservedFor}</p>
           <p className="truncate text-xs text-muted">{room.typeName}</p>
         </>
       ) : room.guestName ? (
@@ -240,7 +243,7 @@ function RoomSheet({
       ) : (
         <div className="mt-5">
           {room.reservedFor && user?.role !== "housekeeping" && (
-            <p className="mb-3 rounded-lg bg-marigold-50 px-3 py-2 text-sm text-marigold-700">
+            <p className="mb-3 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
               Held for <strong>{room.reservedFor}</strong> today.
             </p>
           )}
@@ -360,7 +363,7 @@ function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Roo
       {noTypes ? (
         <p className="text-sm text-muted">
           Create a room type first in{" "}
-          <Link to="/settings" className="font-semibold text-teal-700 hover:underline" onClick={onClose}>Settings</Link>.
+          <Link to="/settings" className="font-semibold text-brand-700 hover:underline" onClick={onClose}>Settings</Link>.
         </p>
       ) : (
         <form id={formId} onSubmit={form.handleSubmit((v) => save.mutate(v as z.output<typeof roomSchema>))} className="flex flex-col gap-4" noValidate>

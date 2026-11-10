@@ -43,12 +43,13 @@ make test    # go vet + go test + tsc
 - Auth: 15-minute access JWT kept in memory on the client, plus a rotating refresh token in the httpOnly cookie `guestly_refresh` (path `/api/v1/auth`).
 
 ## Frontend conventions
-- Brand: **Teal + Marigold** on warm ivory. Tokens are in `src/index.css` (`@theme`); never hard-code hex values in components. Marigold is an accent only (welcome light, stars, attention), never body text; use `marigold-700` if it must be text.
-- Fonts: Fraunces (`font-display`, headings and numbers) + Plus Jakarta Sans (UI).
-- Logo: `src/components/brand/Logo.tsx`. An arched doorway forms a "g", with a marigold "welcome light" dot. The favicon is `public/favicon.svg`.
+- Brand: **Red on clean white** (staging redesign, after https://guestly-phi.vercel.app/). Tokens are in `src/index.css` (`@theme`): `brand-*` (red, `brand-700` = primary), `accent-*` (gold highlights only; `accent-700` if it must be text), plus neutrals (`ivory` = page bg, `paper`, `sand`, `line`, `ink`, `muted`). Never hard-code hex values in components. Cards are flat (border, no shadow).
+- Fonts: Manrope (`font-display`, headings and numbers, bold) + DM Sans (UI).
+- Shell: a sticky top bar (logo · property switcher · account) and a floating bottom nav at every screen size; `PageHeader` shows a small "Hotel operations" eyebrow.
+- Logo: `src/components/brand/Logo.tsx`. An arched doorway forms a "g" in ink, with a red "welcome light" dot. The favicon is `public/favicon.svg`.
 - UI primitives are in `src/components/ui.tsx` (Button, Field, Input, Select, Card, Sheet, EmptyState…). Use `Sheet` for create/edit flows.
 - Format money with `rupees(paise)` and parse input with `toPaise()` from `src/lib/format.ts`.
-- Mobile-first: bottom tabs below `lg`, sidebar at `lg` and up.
+- Mobile-first.
 - The admin console lives in `src/admin/` with its own API client (`adminClient`) and auth context. `App.tsx` switches between the hotel and admin apps by the `/admin` path.
 
 ## Aadhaar auto-fill

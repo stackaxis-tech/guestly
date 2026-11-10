@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, BadgeCheck, Loader2, Plus, Search, Trash2, UserRound } from "lucide-react";
+import { ArrowLeft, BadgeCheck, BedDouble, IdCard, Loader2, Plus, ShieldCheck, Trash2, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CameraCapture } from "../components/CameraCapture";
-import { Button, Card, Disclosure, ErrorNote, Field, Input, Select, Stepper, Textarea } from "../components/ui";
+import { Button, Card, Disclosure, ErrorNote, Field, Input, PageHeader, Select, Stepper, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { clock12, rupees, toPaise } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
@@ -62,15 +62,32 @@ function nightsBetween(fromISO: string, toISO: string) {
   return Math.max(1, Math.round((b.getTime() - a.getTime()) / 86_400_000));
 }
 
-function Section({ n, title, aside, children }: { n: number; title: string; aside?: ReactNode; children: ReactNode }) {
+function Section({
+  icon: Icon,
+  title,
+  description,
+  aside,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <Card>
-      <div className="flex items-center gap-3 border-b border-line px-5 py-3.5">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-teal-700 text-sm font-bold text-ivory">{n}</span>
-        <h2 className="flex-1 font-semibold">{title}</h2>
-        {aside}
+    <Card className="px-5 py-5 sm:px-6">
+      <div className="mb-5 flex items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-line bg-sand text-ink-soft">
+          <Icon className="size-[18px]" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-base font-bold">{title}</h2>
+          {description && <p className="mt-0.5 text-[13px] text-muted">{description}</p>}
+        </div>
+        {aside && <div className="shrink-0">{aside}</div>}
       </div>
-      <div className="px-5 py-5">{children}</div>
+      {children}
     </Card>
   );
 }
@@ -158,13 +175,13 @@ function ScanNote({ scan, onUseAadhaar }: { scan: ScanState; onUseAadhaar: () =>
   }
   if (scan.state === "failed") {
     return (
-      <p className="rounded-lg bg-marigold-50 px-3 py-2 text-sm text-marigold-700" role="status">
+      <p className="rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700" role="status">
         {scan.message}
       </p>
     );
   }
   return (
-    <div className="rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800" role="status">
+    <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800" role="status">
       <p className="flex items-center gap-2 font-medium">
         <BadgeCheck className="size-4 shrink-0" aria-hidden /> Filled from Aadhaar, please check the details.
       </p>
@@ -395,14 +412,21 @@ export function CheckInPage() {
       );
       if (r.guest) {
         const g = r.guest;
-        setPerson({ name: g.name, nationality: g.nationality, email: g.email, address: g.address, gender: g.gender, birthYear: g.birthYear ? String(g.birthYear) : "" });
+        const onFile: PersonForm = { name: g.name, nationality: g.nationality, email: g.email, address: g.address, gender: g.gender, birthYear: g.birthYear ? String(g.birthYear) : "" };
+        setPerson((p) => {
+          const next = { ...p };
+          (Object.keys(onFile) as (keyof PersonForm)[]).forEach((k) => {
+            if (!p[k].trim() || (k === "nationality" && p[k] === "IN")) next[k] = onFile[k];
+          });
+          return next;
+        });
         setLookup({ state: "found", guest: g, docs: r.documents });
         setUseDocOnFile((r.documents?.length ?? 0) > 0);
         setConsent(true);
       } else {
         setLookup({ state: "new" });
         setUseDocOnFile(false);
-        if (bookedName) setPerson((p) => ({ ...p, name: bookedName }));
+        if (bookedName) setPerson((p) => (p.name.trim() ? p : { ...p, name: bookedName }));
       }
     } catch (err) {
       setLookup({ state: "idle" });
@@ -419,7 +443,7 @@ export function CheckInPage() {
   const submit = useMutation({
     mutationFn: async () => {
       const clientErrors: Errors = {};
-      if (lookup.state === "idle" || lookup.state === "loading") clientErrors["guest.phone"] = "Look up the guest's phone number first.";
+      if (phone.replace(/\D/g, "").length < 10) clientErrors["guest.phone"] = "Enter the guest's 10-digit mobile number.";
       if (!person.name.trim()) clientErrors["guest.name"] = "Enter the guest's full name.";
       if (!useDocOnFile && !doc.front) clientErrors["document.frontUploadId"] = "Take a photo of the front of the ID.";
       companions.forEach((c, i) => {
@@ -429,6 +453,13 @@ export function CheckInPage() {
       if (!roomId) clientErrors.roomId = "Choose a room.";
       if (toPaise(rate) === null) clientErrors.nightlyRate = "Enter the nightly rate.";
       if (Object.keys(clientErrors).length) throw new ApiError(422, "validation_failed", "Some fields need attention.", clientErrors);
+
+      // Phone not looked up yet (e.g. submitted straight from the field): link a returning guest by number.
+      let guestId = lookup.guest?.id ?? "";
+      if (lookup.state !== "found") {
+        const r = await api<{ guest: Guest | null }>(`/properties/${pid}/guests/lookup?phone=${encodeURIComponent(phone)}`);
+        guestId = r.guest?.id ?? "";
+      }
 
       const up = async (b: Blob | null, kind: "photo" | "id_front" | "id_back", label: string) => {
         if (!b) return "";
@@ -475,7 +506,7 @@ export function CheckInPage() {
         method: "POST",
         body: {
           guest: {
-            id: lookup.guest?.id ?? "",
+            id: guestId,
             name: person.name,
             phone,
             email: person.email,
@@ -520,25 +551,23 @@ export function CheckInPage() {
 
   const general = submit.error && !(submit.error instanceof ApiError && submit.error.fields) ? submit.error.message : "";
   const found = lookup.state === "found";
-  const showDetails = lookup.state === "new" || found;
+  const phoneDigits = phone.replace(/\D/g, "");
+  const nightsLabel = `${nights} ${nights === 1 ? "night" : "nights"}`;
 
   return (
     <>
       <Link to="/" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
         <ArrowLeft className="size-4" aria-hidden /> Today
       </Link>
-      <header className="mb-6">
-        <h1 className="font-display text-[28px] leading-tight font-semibold tracking-tight">New check-in</h1>
-        <p className="mt-1 text-[15px] text-muted">Start with the guest's mobile number. Returning guests fill in automatically.</p>
-      </header>
+      <PageHeader title="New check-in" description="A warm welcome starts with a smooth check-in. Returning guests fill in from their mobile number." />
 
       {reservationId && booking.data && !reservation && <div className="mb-4"><ErrorNote message="This booking has already been checked in or closed. Continue only for a new walk-in." /></div>}
       {reservation && (
-        <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800" role="status">
-          Checking in the booking for <strong>{reservation.guestName}</strong>, Room {reservation.roomNumber}.
+        <div className="mb-4 rounded-xl border border-line bg-sand px-4 py-3 text-sm text-ink-soft" role="status">
+          Checking in the booking for <strong className="text-ink">{reservation.guestName}</strong>, Room {reservation.roomNumber}.
           {reservation.advanceAmount > 0 && ` ${rupees(reservation.advanceAmount)} advance from the booking is added automatically.`}
           {rooms.data && !ready.some((r) => r.id === reservation.roomId) && (
-            <span className="mt-1 block font-semibold text-marigold-700">
+            <span className="mt-1 block font-semibold text-accent-700">
               Room {reservation.roomNumber} isn't ready yet, so another room is selected below. Mark it ready on the Rooms page to use it, or keep the room below at the booked rate.
             </span>
           )}
@@ -547,62 +576,92 @@ export function CheckInPage() {
 
       <form
         noValidate
-        className="flex flex-col gap-5"
+        className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]"
         onSubmit={(e) => {
           e.preventDefault();
           setErrors({});
           submit.mutate();
         }}
       >
-        <Section n={1} title="Guest" aside={found && <span className="flex items-center gap-1 text-sm font-semibold text-ready"><BadgeCheck className="size-4" /> Returning guest</span>}>
-          <div className="flex flex-col gap-5">
-            <Field label="Mobile number" error={errors["guest.phone"]} hint="10-digit Indian mobile, or + country code for foreign numbers.">
-              {(id, d) => (
-                <div className="flex gap-2">
-                  <div className="min-w-0 flex-1">
-                  <Input
-                    id={id}
-                    aria-describedby={d}
-                    type="tel"
-                    inputMode="tel"
-                    autoFocus
-                    placeholder="98470 12345"
-                    value={phone}
-                    invalid={!!errors["guest.phone"]}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
-                      if (lookup.state !== "idle") setLookup({ state: "idle" });
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void findGuest();
-                      }
-                    }}
-                  />
-                  </div>
-                  <Button type="button" variant="secondary" icon={<Search className="size-4" />} loading={lookup.state === "loading"} onClick={() => findGuest()}>
-                Find
-              </Button>
-                </div>
-              )}
-            </Field>
-
-            {found && lookup.guest && (
-              <div className="flex items-center gap-3 rounded-lg bg-teal-50 px-4 py-3 text-sm text-teal-800">
-                <UserRound className="size-5 shrink-0" aria-hidden />
-                <span>
-                  <strong>{lookup.guest.name}</strong> has stayed {lookup.guest.stayCount} {lookup.guest.stayCount === 1 ? "time" : "times"} before. Details are filled
-                  in; check they're still correct.
+        <div className="flex min-w-0 flex-col gap-5">
+            <Section
+              icon={UserRound}
+              title="Guest information"
+              description="Start with the mobile number. A returning guest's details fill in automatically."
+              aside={
+                <span className="hidden items-center gap-1 text-xs font-medium text-muted sm:flex">
+                  <ShieldCheck className="size-3.5" aria-hidden /> Private &amp; secure
                 </span>
-              </div>
-            )}
-          </div>
-        </Section>
+              }
+            >
+              <div className="flex flex-col gap-5">
+                <Field
+                  label="Mobile number"
+                  error={errors["guest.phone"]}
+                  hint={
+                    lookup.state === "new"
+                      ? "New guest: fill in their details below."
+                      : "10-digit Indian mobile, or + country code for foreign numbers."
+                  }
+                >
+                  {(id, d) => (
+                    <div className="relative sm:max-w-sm">
+                      <Input
+                        id={id}
+                        aria-describedby={d}
+                        type="tel"
+                        inputMode="tel"
+                        autoFocus
+                        placeholder="98470 12345"
+                        value={phone}
+                        invalid={!!errors["guest.phone"]}
+                        className="pr-10"
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPhone(v);
+                          if (lookup.state !== "idle") setLookup({ state: "idle" });
+                          // Look up as soon as a full Indian number is typed.
+                          if (!v.trim().startsWith("+") && v.replace(/\D/g, "").length === 10) void findGuest(v);
+                        }}
+                        onBlur={() => {
+                          if (lookup.state === "idle" && phoneDigits.length >= 10) void findGuest();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void findGuest();
+                          }
+                        }}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted" aria-hidden>
+                        {lookup.state === "loading" ? <Loader2 className="size-4 animate-spin" /> : found ? <BadgeCheck className="size-4 text-ready" /> : null}
+                      </span>
+                    </div>
+                  )}
+                </Field>
 
-        {showDetails && (
-          <>
-            <Section n={2} title="ID proof">
+                {found && lookup.guest && (
+                  <div className="flex items-center gap-3 rounded-lg border border-ready/20 bg-ready-bg px-4 py-3 text-sm text-ready" role="status">
+                    <BadgeCheck className="size-5 shrink-0" aria-hidden />
+                    <span>
+                      <strong>Returning guest: {lookup.guest.name}</strong> has stayed {lookup.guest.stayCount} {lookup.guest.stayCount === 1 ? "time" : "times"} before. Check the details are still correct.
+                    </span>
+                  </div>
+                )}
+
+                <PersonFields value={person} onChange={setPerson} errors={errors} prefix="guest." />
+                <CameraCapture
+                  label={found && lookup.guest?.hasPhoto ? "New guest photo (optional, a photo is on file)" : "Guest photo (recommended)"}
+                  facing="user"
+                  shape="portrait"
+                  value={photo}
+                  onChange={setPhoto}
+                  error={errors["guest.photoUploadId"]}
+                />
+              </div>
+            </Section>
+
+            <Section icon={IdCard} title="ID proof" description="Scan the Aadhaar QR to fill details, or photograph the ID. Only the last 4 Aadhaar digits are kept.">
               {found && (lookup.docs?.length ?? 0) > 0 && (
                 <div className="mb-5 flex flex-col gap-2">
                   {(
@@ -611,8 +670,8 @@ export function CheckInPage() {
                       [false, "Add a new ID"],
                     ] as const
                   ).map(([v, label]) => (
-                    <label key={String(v)} className={clsx("flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm", useDocOnFile === v ? "border-teal-700 bg-teal-50" : "border-line")}>
-                      <input type="radio" name="docchoice" className="accent-teal-700" checked={useDocOnFile === v} onChange={() => setUseDocOnFile(v)} />
+                    <label key={String(v)} className={clsx("flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm", useDocOnFile === v ? "border-brand-700 bg-brand-50" : "border-line")}>
+                      <input type="radio" name="docchoice" className="accent-brand-700" checked={useDocOnFile === v} onChange={() => setUseDocOnFile(v)} />
                       {label}
                     </label>
                   ))}
@@ -634,23 +693,10 @@ export function CheckInPage() {
               )}
             </Section>
 
-            <Section n={3} title="Guest details">
-              <div className="flex flex-col gap-5">
-                <PersonFields value={person} onChange={setPerson} errors={errors} prefix="guest." />
-                <CameraCapture
-                  label={found && lookup.guest?.hasPhoto ? "New guest photo (optional, a photo is on file)" : "Guest photo (recommended)"}
-                  facing="user"
-                  shape="portrait"
-                  value={photo}
-                  onChange={setPhoto}
-                  error={errors["guest.photoUploadId"]}
-                />
-              </div>
-            </Section>
-
             <Section
-              n={4}
+              icon={Users}
               title="Other guests in the room"
+              description="Add every adult staying in the room. Police rules usually need an ID for each."
               aside={
                 <Button
                   type="button"
@@ -664,7 +710,7 @@ export function CheckInPage() {
               }
             >
               {companions.length === 0 ? (
-                <p className="text-sm text-muted">Travelling alone? Skip this. Add every adult staying in the room; police rules usually need an ID for each.</p>
+                <p className="rounded-lg border border-dashed border-line px-4 py-3 text-sm text-muted">Travelling alone? Skip this.</p>
               ) : (
                 <div className="flex flex-col gap-6">
                   {companions.map((c, i) => {
@@ -679,7 +725,7 @@ export function CheckInPage() {
                         </div>
                         <PersonFields compact value={c.person} onChange={(p) => update({ person: p, doc: p.nationality !== "IN" ? { ...c.doc, type: "passport" } : c.doc })} errors={errors} prefix={`companions.${i}.`} />
                         <label className="mt-4 flex items-center gap-2 text-sm">
-                          <input type="checkbox" className="size-4 accent-teal-700" checked={c.addId} onChange={(e) => update({ addId: e.target.checked })} />
+                          <input type="checkbox" className="size-4 accent-brand-700" checked={c.addId} onChange={(e) => update({ addId: e.target.checked })} />
                           Record their ID (needed for adults)
                         </label>
                         {c.addId && (
@@ -708,7 +754,7 @@ export function CheckInPage() {
               )}
             </Section>
 
-            <Section n={5} title="Room & stay">
+            <Section icon={BedDouble} title="Room & stay" description="Only rooms marked ready are listed.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Room" error={errors.roomId} className="sm:col-span-2">
                   {(id, d) =>
@@ -768,11 +814,11 @@ export function CheckInPage() {
                   Estimated room charge ({nights} × {rupees(ratePaise)}
                   {gstPct > 0 ? ` + ${gstPct}% GST` : ""})
                 </span>
-                <span className="tabular font-display text-lg font-semibold">{rupees(roomTotal)}</span>
+                <span className="tabular font-display text-lg font-bold">{rupees(roomTotal)}</span>
               </div>
             </Section>
 
-            <Section n={6} title="Advance payment">
+            <Section icon={Wallet} title="Advance payment" description="Anything collected now is recorded against the bill.">
               <div className="grid gap-4 sm:grid-cols-3">
                 <Field label={reservation?.advanceAmount ? "Extra amount received now" : "Amount received"} optional error={errors["advance.amount"]}>
                   {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" placeholder="0" value={advance} onChange={(e) => setAdvance(e.target.value)} />}
@@ -796,7 +842,7 @@ export function CheckInPage() {
 
             <Card className="px-5 py-4">
               <label className="flex cursor-pointer items-start gap-3">
-                <input type="checkbox" className="mt-0.5 size-4 accent-teal-700" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                <input type="checkbox" className="mt-0.5 size-4 accent-brand-700" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
                 <span className="text-sm">
                   <span className="font-semibold">Guest agrees to receive WhatsApp messages</span>
                   <span className="block text-muted">
@@ -812,18 +858,56 @@ export function CheckInPage() {
                 Some fields above need attention.
               </p>
             )}
-            {/* Spacer so the fixed bar never covers the last section */}
-            <div className="h-20" aria-hidden />
-            <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-paper/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(26_36_35/0.18)] backdrop-blur lg:left-[248px]">
-              <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 lg:px-6">
+            {/* Spacer so the fixed bar never covers the last section (phones/tablets) */}
+            <div className="h-20 lg:hidden" aria-hidden />
+        </div>
+
+        {/* Desktop: sticky summary with the primary action */}
+        <aside className="sticky top-24 hidden lg:block">
+          <Card className="p-5">
+            <p className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">Stay summary</p>
+            <dl className="mt-4 flex flex-col gap-2.5 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Guest</dt>
+                <dd className="truncate font-medium">{person.name.trim() || "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Room</dt>
+                <dd className="font-medium">{room ? `${room.number} · ${room.typeName}` : "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Stay</dt>
+                <dd className="font-medium">{nightsLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Guests</dt>
+                <dd className="font-medium">{1 + companions.length}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 border-t border-line pt-4">
+              <p className="text-xs text-muted">Estimated room charge{gstPct > 0 ? ` incl. ${gstPct}% GST` : ""}</p>
+              <p className="tabular font-display text-2xl font-bold">{rupees(roomTotal)}</p>
+            </div>
+            <Button type="submit" className="mt-4 w-full" loading={submit.isPending} disabled={ready.length === 0}>
+              Check in{room ? ` to ${room.number}` : ""}
+            </Button>
+            {progress && <p className="mt-2 text-center text-xs text-muted">{progress}</p>}
+            <Link to="/" className="mt-2 block text-center text-sm font-medium text-muted hover:text-ink">
+              Cancel
+            </Link>
+          </Card>
+        </aside>
+
+            <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-paper/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(36_36_36/0.18)] backdrop-blur lg:hidden">
+              <div className="mx-auto flex max-w-6xl items-center justify-end gap-3">
               {progress ? (
                 <span className="mr-auto min-w-0 truncate text-sm text-muted">{progress}</span>
               ) : (
                 room && (
                   <span className="mr-auto min-w-0">
-                    <span className="tabular block font-display text-lg leading-tight font-semibold">{rupees(roomTotal)}</span>
+                    <span className="tabular block font-display text-lg leading-tight font-bold">{rupees(roomTotal)}</span>
                     <span className="block truncate text-xs text-muted">
-                      Room {room.number} · {nights} {nights === 1 ? "night" : "nights"}
+                      Room {room.number} · {nightsLabel}
                     </span>
                   </span>
                 )
@@ -837,8 +921,6 @@ export function CheckInPage() {
               </Button>
               </div>
             </div>
-          </>
-        )}
       </form>
     </>
   );

@@ -20,7 +20,7 @@ const nav = [
 
 function AdminBadge() {
   return (
-    <span className="rounded-full bg-marigold-100 px-2 py-0.5 text-[11px] font-bold tracking-wide text-marigold-700 uppercase">
+    <span className="rounded-full bg-accent-100 px-2 py-0.5 text-[11px] font-bold tracking-wide text-accent-700 uppercase">
       Admin
     </span>
   );
@@ -32,7 +32,7 @@ export function AdminShell() {
 
   return (
     <div className="min-h-dvh lg:pl-[232px]">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col overflow-y-auto bg-teal-800 text-teal-100 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col overflow-y-auto bg-ink text-white/75 lg:flex">
         <div className="flex items-center gap-2 px-5 pt-5 pb-6">
           <Logo size={28} tone="inverse" />
           <AdminBadge />
@@ -46,7 +46,7 @@ export function AdminShell() {
               className={({ isActive }) =>
                 clsx(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] font-medium transition-colors",
-                  isActive ? "bg-teal-700 text-ivory" : "text-teal-100 hover:bg-teal-700/50 hover:text-ivory",
+                  isActive ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white",
                 )
               }
             >
@@ -55,26 +55,26 @@ export function AdminShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="flex items-center gap-2.5 border-t border-teal-700 p-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-marigold-400 text-xs font-bold text-teal-900">
+        <div className="flex items-center gap-2.5 border-t border-white/10 p-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-400 text-xs font-bold text-ink">
             {initials(admin?.name ?? "")}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-ivory">{admin?.name}</span>
-            <span className="block truncate text-xs text-teal-200">{admin?.email}</span>
+            <span className="block truncate text-xs text-white/60">{admin?.email}</span>
           </span>
-          <button onClick={logout} className="rounded-md p-1.5 text-teal-200 hover:bg-teal-700 hover:text-ivory" aria-label="Sign out">
+          <button onClick={logout} className="rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white" aria-label="Sign out">
             <LogOut className="size-4" />
           </button>
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-teal-700 bg-teal-800 px-4 py-2.5 lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-ink px-4 py-2.5 lg:hidden">
         <span className="flex items-center gap-2">
           <LogoMark size={28} tone="inverse" />
           <AdminBadge />
         </span>
-        <button onClick={logout} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-teal-100 hover:bg-teal-700">
+        <button onClick={logout} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-white/75 hover:bg-white/10">
           <LogOut className="size-4" aria-hidden /> Sign out
         </button>
       </header>
@@ -92,12 +92,12 @@ export function AdminShell() {
             to={to}
             end={end}
             className={({ isActive }) =>
-              clsx("flex flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] font-semibold", isActive ? "text-teal-700" : "text-muted")
+              clsx("flex flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] font-semibold", isActive ? "text-brand-700" : "text-muted")
             }
           >
             {({ isActive }) => (
               <>
-                <span className={clsx("rounded-full px-4 py-1", isActive && "bg-teal-50")}>
+                <span className={clsx("rounded-full px-4 py-1", isActive && "bg-brand-50")}>
                   <Icon className="size-5" aria-hidden />
                 </span>
                 {label}
@@ -122,13 +122,13 @@ export function AdminLogin() {
   const e = formState.errors;
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-teal-800 px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-ink px-4">
       <div className="w-full max-w-sm rounded-2xl bg-paper p-7 shadow-[var(--shadow-pop)]">
         <div className="flex items-center gap-2">
           <Logo size={28} />
           <AdminBadge />
         </div>
-        <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">Guestlog console</h1>
+        <h1 className="mt-6 font-display text-2xl font-bold tracking-tight">Guestlog console</h1>
         <p className="mt-1 text-sm text-muted">Manage hotel clients, plans, and payments.</p>
         <form
           noValidate

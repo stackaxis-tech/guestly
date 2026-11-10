@@ -61,7 +61,7 @@ export function ClientDetailPage() {
         <PropertyLogo name={c.name} url={c.properties[0]?.logoUrl} size={56} className="rounded-xl" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-[28px] leading-tight font-semibold tracking-tight">{c.name}</h1>
+            <h1 className="font-display text-[28px] leading-tight font-bold tracking-tight">{c.name}</h1>
             <StateBadge state={c.state} />
           </div>
           <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
@@ -99,15 +99,15 @@ export function ClientDetailPage() {
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card className="px-4 py-3">
           <p className="text-xs text-muted">Total paid</p>
-          <p className="tabular font-display text-2xl font-semibold">{rupees(c.totalPaid)}</p>
+          <p className="tabular font-display text-2xl font-bold">{rupees(c.totalPaid)}</p>
         </Card>
         <Card className="px-4 py-3">
           <p className="text-xs text-muted">Properties</p>
-          <p className="tabular font-display text-2xl font-semibold">{c.properties.length}</p>
+          <p className="tabular font-display text-2xl font-bold">{c.properties.length}</p>
         </Card>
         <Card className="col-span-2 px-4 py-3 sm:col-span-1">
           <p className="text-xs text-muted">Last payment</p>
-          <p className="font-display text-2xl font-semibold">{c.payments[0] ? formatDate(c.payments[0].paidOn) : "—"}</p>
+          <p className="font-display text-2xl font-bold">{c.payments[0] ? formatDate(c.payments[0].paidOn) : "—"}</p>
         </Card>
       </div>
 
@@ -120,7 +120,7 @@ export function ClientDetailPage() {
             onClick={() => setTab(t.key)}
             className={clsx(
               "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors",
-              tab === t.key ? "border-teal-700 text-teal-800" : "border-transparent text-muted hover:text-ink",
+              tab === t.key ? "border-brand-700 text-brand-800" : "border-transparent text-muted hover:text-ink",
             )}
           >
             {t.label}
@@ -136,7 +136,7 @@ export function ClientDetailPage() {
           ))}
           <button
             onClick={() => setSheet({ kind: "addProperty" })}
-            className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line-strong py-5 text-sm font-semibold text-teal-700 hover:border-teal-400 hover:bg-teal-50"
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line-strong py-5 text-sm font-semibold text-brand-700 hover:border-brand-400 hover:bg-brand-50"
           >
             <Plus className="size-4" aria-hidden /> Add another property
           </button>
@@ -614,7 +614,7 @@ function UsersList({ client }: { client: ClientDetail }) {
                 <span className="rounded-full bg-ready-bg px-2.5 py-0.5 text-xs font-semibold text-ready">Active</span>
               ) : (
                 <>
-                  <span className="rounded-full bg-marigold-50 px-2.5 py-0.5 text-xs font-semibold text-marigold-700">Invite pending</span>
+                  <span className="rounded-full bg-accent-50 px-2.5 py-0.5 text-xs font-semibold text-accent-700">Invite pending</span>
                   <Button size="sm" variant="secondary" icon={<Send className="size-4" />} loading={resend.isPending && resend.variables?.id === u.id} onClick={() => resend.mutate(u)}>
                     New invite link
                   </Button>

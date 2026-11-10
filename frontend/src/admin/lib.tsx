@@ -162,16 +162,16 @@ export function useInvalidateAdmin() {
 
 export const clientStateMeta: Record<ClientState, { label: string; className: string; dot: string }> = {
   active: { label: "Active", className: "bg-ready-bg text-ready", dot: "bg-ready" },
-  trial: { label: "Trial", className: "bg-teal-50 text-teal-700", dot: "bg-teal-400" },
-  expiring: { label: "Renewing soon", className: "bg-marigold-50 text-marigold-700", dot: "bg-marigold-400" },
+  trial: { label: "Trial", className: "bg-brand-50 text-brand-700", dot: "bg-brand-400" },
+  expiring: { label: "Renewing soon", className: "bg-accent-50 text-accent-700", dot: "bg-accent-400" },
   overdue: { label: "Overdue", className: "bg-danger-bg text-danger", dot: "bg-danger" },
   suspended: { label: "Suspended", className: "bg-maintenance-bg text-maintenance", dot: "bg-maintenance" },
 };
 
 export const billingStateMeta: Record<string, { label: string; className: string }> = {
-  trial: { label: "Trial", className: "bg-teal-50 text-teal-700" },
+  trial: { label: "Trial", className: "bg-brand-50 text-brand-700" },
   active: { label: "Active", className: "bg-ready-bg text-ready" },
-  grace: { label: "In grace period", className: "bg-marigold-50 text-marigold-700" },
+  grace: { label: "In grace period", className: "bg-accent-50 text-accent-700" },
   expired: { label: "Expired · read-only", className: "bg-danger-bg text-danger" },
 };
 

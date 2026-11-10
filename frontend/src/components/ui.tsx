@@ -32,8 +32,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         "inline-flex items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap",
         "transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60",
         size === "md" ? "h-10 px-4 text-sm" : "h-8 px-3 text-[13px]",
-        variant === "primary" && "bg-teal-700 text-ivory hover:bg-teal-800 active:bg-teal-900",
-        variant === "secondary" && "border border-line-strong bg-paper text-ink hover:bg-sand",
+        variant === "primary" && "border border-brand-700 bg-brand-700 text-white hover:border-brand-800 hover:bg-brand-800 active:bg-brand-900",
+        variant === "secondary" && "border border-line bg-paper text-ink-soft hover:border-line-strong hover:bg-sand hover:text-ink",
         variant === "ghost" && "text-ink-soft hover:bg-sand hover:text-ink",
         variant === "danger" && "bg-danger text-white hover:brightness-95",
         className,
@@ -63,9 +63,9 @@ export function Field({ label, error, hint, optional, children, className }: Fie
   const msgId = `${id}-msg`;
   return (
     <div className={clsx("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-sm font-medium text-ink-soft">
+      <label htmlFor={id} className="text-[13px] font-semibold text-ink">
         {label}
-        {optional && <span className="ml-1.5 font-normal text-muted">(optional)</span>}
+        {optional && <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted uppercase">Optional</span>}
       </label>
       {children(id, error || hint ? msgId : undefined)}
       {error ? (
@@ -82,8 +82,8 @@ export function Field({ label, error, hint, optional, children, className }: Fie
 }
 
 const controlBase =
-  "w-full rounded-lg border bg-paper px-3 text-[15px] text-ink placeholder:text-muted/70 " +
-  "transition-colors focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-500 " +
+  "w-full rounded-lg border bg-paper px-3.5 text-[15px] text-ink placeholder:text-muted/70 " +
+  "transition-colors hover:border-line-strong focus:outline-none focus:ring-3 focus:ring-ink/5 focus:border-ink/40 " +
   "disabled:bg-sand disabled:text-muted";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean; prefix?: string }>(
@@ -95,7 +95,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
           <input
             ref={ref}
             aria-invalid={invalid || undefined}
-            className={clsx(controlBase, "date-input h-10 pr-10", invalid ? "border-danger" : "border-line-strong", className)}
+            className={clsx(controlBase, "date-input h-10 pr-10", invalid ? "border-danger" : "border-line", className)}
             {...rest}
           />
           <CalendarDays className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
@@ -106,7 +106,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       <input
         ref={ref}
         aria-invalid={invalid || undefined}
-        className={clsx(controlBase, "h-10", invalid ? "border-danger" : "border-line-strong", prefix && "pl-7", className)}
+        className={clsx(controlBase, "h-10", invalid ? "border-danger" : "border-line", prefix && "pl-7", className)}
         {...rest}
       />
     );
@@ -126,7 +126,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
       <textarea
         ref={ref}
         aria-invalid={invalid || undefined}
-        className={clsx(controlBase, "min-h-20 py-2", invalid ? "border-danger" : "border-line-strong", className)}
+        className={clsx(controlBase, "min-h-20 py-2", invalid ? "border-danger" : "border-line", className)}
         {...rest}
       />
     );
@@ -139,7 +139,7 @@ export { Select } from "./Select";
 export function Stepper({ id, value, onChange, min = 0, max = 20, label }: { id?: string; value: number; onChange: (n: number) => void; min?: number; max?: number; label: string }) {
   const btn = "flex size-10 items-center justify-center text-ink-soft transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:opacity-40";
   return (
-    <div className="inline-flex h-10 items-center overflow-hidden rounded-lg border border-line-strong bg-paper">
+    <div className="inline-flex h-10 items-center overflow-hidden rounded-lg border border-line bg-paper">
       <button type="button" className={btn} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Fewer ${label}`}>
         <Minus className="size-4" />
       </button>
@@ -157,7 +157,7 @@ export function Stepper({ id, value, onChange, min = 0, max = 20, label }: { id?
 export function Disclosure({ summary, children, className }: { summary: ReactNode; children: ReactNode; className?: string }) {
   return (
     <details className={clsx("group", className)}>
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md text-sm font-semibold text-teal-700 hover:text-teal-800 [&::-webkit-details-marker]:hidden">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md text-sm font-semibold text-brand-700 hover:text-brand-800 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
         {summary}
       </summary>
@@ -170,17 +170,33 @@ export function Disclosure({ summary, children, className }: { summary: ReactNod
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <section className={clsx("rounded-[var(--radius-card)] border border-line bg-paper shadow-[var(--shadow-card)]", className)}>
+    <section className={clsx("rounded-[var(--radius-card)] border border-line bg-paper", className)}>
       {children}
     </section>
   );
 }
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+  eyebrow = "Hotel operations",
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+  eyebrow?: string | null;
+}) {
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="font-display text-[28px] leading-tight font-semibold tracking-tight">{title}</h1>
+        {eyebrow && (
+          <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+            <span className="size-1.5 rounded-full bg-muted/70" aria-hidden />
+            {eyebrow}
+          </p>
+        )}
+        <h1 className="font-display text-[28px] leading-tight font-bold tracking-tight">{title}</h1>
         {description && <p className="mt-1 text-[15px] text-muted">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -191,7 +207,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center">
-      <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-teal-50 text-teal-600">{icon}</div>
+      <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-sand text-ink-soft">{icon}</div>
       <h2 className="text-base font-semibold">{title}</h2>
       <p className="mt-1 max-w-sm text-sm text-muted">{body}</p>
       {action && <div className="mt-5">{action}</div>}

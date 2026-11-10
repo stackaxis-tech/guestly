@@ -34,29 +34,29 @@ export function AuthPage({ children }: { children?: React.ReactNode }) {
 
 export function BrandPanel() {
   return (
-    <div className="relative hidden overflow-hidden bg-teal-800 p-12 text-ivory lg:flex lg:flex-col">
+    <div className="relative hidden overflow-hidden bg-ink p-12 text-white lg:flex lg:flex-col">
       <Logo size={34} tone="inverse" />
       <div className="mt-auto max-w-md">
         <p className="font-display text-[40px] leading-[1.1] font-medium tracking-tight">
           Every guest,
           <br />
           welcomed{" "}
-          <span className="text-marigold-300 italic">properly.</span>
+          <span className="text-brand-400">properly.</span>
         </p>
-        <p className="mt-5 text-[15px] leading-relaxed text-teal-100">
+        <p className="mt-5 text-[15px] leading-relaxed text-white/70">
           Check-ins, rooms, GST invoices and guest reviews for small hotels and homestays, in one calm place.
         </p>
       </div>
       {/* Decorative doorway echoing the logo mark */}
       <svg
         aria-hidden
-        className="pointer-events-none absolute -top-16 -right-24 size-[420px] text-teal-700"
+        className="pointer-events-none absolute -top-16 -right-24 size-[420px] text-white/10"
         viewBox="0 0 32 32"
         fill="none"
       >
         <path d="M8.5 20.5V13a7.5 7.5 0 0 1 15 0v11.5a5.5 5.5 0 0 1-5.5 5.5h-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         <path d="M8.5 20.5h15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx="16" cy="13.5" r="2.4" fill="var(--color-marigold-400)" opacity="0.9" />
+        <circle cx="16" cy="13.5" r="2.4" fill="var(--color-brand-700)" opacity="0.9" />
       </svg>
     </div>
   );
@@ -93,7 +93,7 @@ function LoginForm() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Welcome back</h1>
+      <h1 className="font-display text-3xl font-bold tracking-tight">Welcome back</h1>
       <p className="mt-2 text-[15px] text-muted">Sign in to your front desk.</p>
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4" noValidate>
         {formError && <ErrorNote message={formError} />}

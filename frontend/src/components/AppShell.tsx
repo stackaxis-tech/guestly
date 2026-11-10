@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronsUpDown, Check, Clock, Home, LogOut, Settings, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -27,56 +27,27 @@ function useNav() {
 export function AppShell() {
   const { current, isLoading, error, refetch } = useProperty();
   const nav = useNav();
-  const tabs = nav.filter((n) => !n.desktopOnly);
   const { pathname } = useLocation();
 
   return (
-    <div className="min-h-dvh lg:pl-[248px]">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col overflow-y-auto border-r border-line bg-paper lg:flex">
-        <div className="px-5 pt-5 pb-4">
-          <Logo size={30} />
+    <div className="min-h-dvh">
+      {/* Top bar: brand, property switcher, account */}
+      <header className="sticky top-0 z-20 border-b border-line bg-paper/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex h-16 w-full items-center gap-3 px-4 sm:px-6 lg:h-[72px] lg:px-9">
+          <div className="flex shrink-0 items-center lg:flex-1">
+            <LogoMark size={30} className="sm:hidden" />
+            <Logo size={30} className="max-sm:hidden" />
+          </div>
+          <div className="min-w-0 flex-1 sm:max-w-64 lg:max-w-60 lg:flex-none">
+            <PropertySwitcher />
+          </div>
+          <div className="flex shrink-0 items-center justify-end sm:ml-auto lg:ml-0 lg:flex-1">
+            <UserMenu />
+          </div>
         </div>
-        <div className="px-3">
-          <PropertySwitcher />
-        </div>
-        <nav className="mt-4 flex flex-1 flex-col gap-0.5 px-3" aria-label="Main">
-          {nav.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                clsx(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] font-medium transition-colors",
-                  isActive ? "bg-teal-50 text-teal-800" : "text-ink-soft hover:bg-sand hover:text-ink",
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon className={clsx("size-[18px]", isActive ? "text-teal-700" : "text-muted")} aria-hidden />
-                  {label}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t border-line p-3">
-          <UserMenu />
-        </div>
-      </aside>
-
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-paper/95 px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 backdrop-blur lg:hidden">
-        <LogoMark size={30} />
-        <div className="min-w-0 flex-1">
-          <PropertySwitcher compact />
-        </div>
-        <UserMenu compact />
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">
+      <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-32 sm:px-6 lg:px-10 lg:pt-10">
         {isLoading ? (
           <Spinner label="Loading your property" />
         ) : error ? (
@@ -93,36 +64,38 @@ export function AppShell() {
         )}
       </main>
 
-      {/* Mobile bottom tabs */}
+      {/* Floating bottom navigation (all screen sizes) */}
       {pathname !== "/check-in" && (
-      <nav
-        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-        className="fixed inset-x-0 bottom-0 z-20 grid border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] lg:hidden"
-        aria-label="Main"
-      >
-        {tabs.map(({ to, label, short, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              clsx(
-                "flex flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] font-semibold",
-                isActive ? "text-teal-700" : "text-muted",
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span className={clsx("rounded-full px-4 py-1 transition-colors", isActive && "bg-teal-50")}>
-                  <Icon className="size-5" aria-hidden />
-                </span>
-                {short ?? label}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+        <nav
+          className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
+          aria-label="Main"
+        >
+          {nav.map(({ to, label, short, icon: Icon, end, desktopOnly }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                clsx(
+                  "relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors",
+                  isActive ? "font-bold text-brand-700" : "font-medium text-muted hover:text-ink",
+                  desktopOnly && "hidden lg:flex",
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-brand-700" aria-hidden />}
+                  <Icon className="size-5" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden />
+                  <span className="max-w-full truncate">
+                    <span className="sm:hidden">{short ?? label}</span>
+                    <span className="max-sm:hidden">{label}</span>
+                  </span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
       )}
     </div>
   );
@@ -144,7 +117,7 @@ function useClickOutside(open: boolean, close: () => void) {
   return ref;
 }
 
-function PropertySwitcher({ compact }: { compact?: boolean }) {
+function PropertySwitcher() {
   const { properties, current, select } = useProperty();
   const [open, setOpen] = useState(false);
   const ref = useClickOutside(open, () => setOpen(false));
@@ -157,17 +130,19 @@ function PropertySwitcher({ compact }: { compact?: boolean }) {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={clsx(
-          "flex w-full items-center gap-2.5 rounded-lg text-left transition-colors hover:bg-sand",
-          compact ? "px-2 py-1" : "border border-line px-2.5 py-2",
-        )}
+        className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-paper px-2 py-1.5 text-left transition-colors hover:border-line-strong"
       >
-        <PropertyLogo name={current.name} url={current.logoUrl} size={compact ? 28 : 32} />
+        <PropertyLogo name={current.name} url={current.logoUrl} size={32} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold">{current.name}</span>
-          {place && <span className="block truncate text-xs text-muted">{place}</span>}
+          {place && (
+            <span className="flex items-center gap-1 truncate text-xs text-muted">
+              <MapPin className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{place}</span>
+            </span>
+          )}
         </span>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted" aria-hidden />
+        <ChevronDown className={clsx("size-4 shrink-0 text-muted transition-transform", open && "rotate-180")} aria-hidden />
       </button>
       {open && (
         <div
@@ -189,7 +164,7 @@ function PropertySwitcher({ compact }: { compact?: boolean }) {
                 <PropertyLogo name={p.name} url={p.logoUrl} size={22} />
                 <span className="truncate">{p.name}</span>
               </span>
-              {p.id === current.id && <Check className="size-4 text-teal-700" aria-hidden />}
+              {p.id === current.id && <Check className="size-4 text-brand-700" aria-hidden />}
             </button>
           ))}
         </div>
@@ -198,7 +173,7 @@ function PropertySwitcher({ compact }: { compact?: boolean }) {
   );
 }
 
-function UserMenu({ compact }: { compact?: boolean }) {
+function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useClickOutside(open, () => setOpen(false));
@@ -210,24 +185,19 @@ function UserMenu({ compact }: { compact?: boolean }) {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label="Account menu"
-        className={clsx("flex items-center gap-2.5 rounded-lg text-left hover:bg-sand", compact ? "p-1" : "w-full p-2")}
+        className="flex items-center gap-2.5 rounded-full p-0.5 text-left transition-colors hover:bg-sand lg:pr-3"
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-marigold-100 text-xs font-bold text-marigold-700">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-100 text-xs font-bold text-accent-700">
           {initials(user.name)}
         </span>
-        {!compact && (
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">{user.name}</span>
-            <span className="block text-xs text-muted">{roleLabel[user.role]}</span>
-          </span>
-        )}
+        <span className="min-w-0 max-lg:hidden">
+          <span className="block max-w-40 truncate text-sm font-semibold">{user.name}</span>
+          <span className="block text-xs text-muted">{roleLabel[user.role]}</span>
+        </span>
       </button>
       {open && (
         <div
-          className={clsx(
-            "absolute z-30 w-56 rounded-lg border border-line bg-paper p-1 shadow-[var(--shadow-pop)]",
-            compact ? "top-full right-0 mt-1" : "bottom-full left-0 mb-1",
-          )}
+          className="absolute top-full right-0 z-30 mt-2 w-56 rounded-xl border border-line bg-paper p-1 shadow-[var(--shadow-pop)]"
         >
           <div className="px-3 py-2">
             <p className="truncate text-sm font-semibold">{user.name}</p>
@@ -255,13 +225,13 @@ function BillingBanner() {
     tone = "border-danger/30 bg-danger-bg text-danger";
     text = "Your Guestlog plan has expired, so this property is read-only. Contact Guestlog to renew and continue checking guests in.";
   } else if (b.state === "grace") {
-    tone = "border-marigold-300 bg-marigold-50 text-marigold-700";
+    tone = "border-accent-300 bg-accent-50 text-accent-700";
     text = `Your Guestlog plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
   } else if (b.state === "trial" && b.daysLeft <= 7) {
-    tone = "border-teal-200 bg-teal-50 text-teal-800";
+    tone = "border-brand-200 bg-brand-50 text-brand-800";
     text = b.daysLeft === 0 ? "Your free trial ends today." : `Your free trial ends in ${days(b.daysLeft)}.`;
   } else if (b.state === "active" && b.daysLeft <= 7) {
-    tone = "border-teal-200 bg-teal-50 text-teal-800";
+    tone = "border-brand-200 bg-brand-50 text-brand-800";
     text = b.daysLeft === 0 ? "Your Guestlog plan renews today." : `Your Guestlog plan is due for renewal in ${days(b.daysLeft)}.`;
   } else {
     return null;

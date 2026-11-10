@@ -18,7 +18,7 @@ export function StayRow({ s }: { s: StaySummary }) {
   const overdue = s.status === "in_house" && new Date(s.expectedCheckOutAt) < new Date() && !dueToday;
   return (
     <Link to={`/stays/${s.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-sand/60">
-      <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg bg-teal-50 font-display text-lg font-semibold text-teal-800">
+      <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-sand font-display text-lg font-bold text-ink">
         {s.roomNumber}
       </span>
       <span className="min-w-0 flex-1">
@@ -28,7 +28,7 @@ export function StayRow({ s }: { s: StaySummary }) {
           {s.status === "in_house" ? `out ${formatDay(s.expectedCheckOutAt)}` : `stayed ${formatDay(s.checkInAt)} – ${formatDay(s.checkedOutAt!)}`}
         </span>
       </span>
-      {dueToday && <span className="rounded-full bg-marigold-50 px-2 py-0.5 text-xs font-semibold text-marigold-700">Leaving today</span>}
+      {dueToday && <span className="rounded-full bg-accent-50 px-2 py-0.5 text-xs font-semibold text-accent-700">Leaving today</span>}
       {overdue && <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger">Past checkout</span>}
       <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
     </Link>
@@ -66,7 +66,7 @@ export function GuestsPage() {
             onClick={() => setTab(t.key)}
             className={clsx(
               "-mb-px border-b-2 px-3 py-2.5 text-sm font-semibold",
-              tab === t.key ? "border-teal-700 text-teal-800" : "border-transparent text-muted hover:text-ink",
+              tab === t.key ? "border-brand-700 text-brand-800" : "border-transparent text-muted hover:text-ink",
             )}
           >
             {t.label}
@@ -159,7 +159,7 @@ export function GuestDetailPage() {
               <div className="flex size-full items-center justify-center bg-sand text-xs text-muted">No photo</div>
             )}
           </div>
-          <h1 className="text-center font-display text-2xl font-semibold">{g.name}</h1>
+          <h1 className="text-center font-display text-2xl font-bold">{g.name}</h1>
           <dl className="mt-4 space-y-2 text-sm">
             {g.phone && (
               <div className="flex items-center gap-2">
@@ -181,11 +181,11 @@ export function GuestDetailPage() {
           <div className="mb-4 grid grid-cols-2 gap-3">
             <Card className="px-4 py-3">
               <p className="text-xs text-muted">Stays</p>
-              <p className="tabular font-display text-2xl font-semibold">{g.stayCount}</p>
+              <p className="tabular font-display text-2xl font-bold">{g.stayCount}</p>
             </Card>
             <Card className="px-4 py-3">
               <p className="text-xs text-muted">Paid in total</p>
-              <p className="tabular font-display text-2xl font-semibold">{rupees(spent)}</p>
+              <p className="tabular font-display text-2xl font-bold">{rupees(spent)}</p>
             </Card>
           </div>
           <Card className="overflow-hidden">

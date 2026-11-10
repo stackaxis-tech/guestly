@@ -2,7 +2,7 @@
  * Guestlog logo.
  *
  * The mark is an arched doorway whose threshold closes the bowl of a lowercase
- * "g" and whose right jamb drops into the descender. The marigold dot inside
+ * "g" and whose right jamb drops into the descender. The red dot inside
  * the doorway is the "welcome light": the porch lamp left on for a guest.
  */
 import clsx from "clsx";
@@ -10,7 +10,7 @@ import clsx from "clsx";
 type MarkProps = { size?: number; className?: string; tone?: "brand" | "inverse" };
 
 export function LogoMark({ size = 32, className, tone = "brand" }: MarkProps) {
-  const stroke = tone === "inverse" ? "var(--color-ivory)" : "var(--color-teal-700)";
+  const stroke = tone === "inverse" ? "var(--color-ivory)" : "var(--color-ink)";
   return (
     <svg
       width={size}
@@ -31,7 +31,7 @@ export function LogoMark({ size = 32, className, tone = "brand" }: MarkProps) {
       {/* Threshold: closes the bowl of the g */}
       <path d="M8.5 20.5h15" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
       {/* Welcome light */}
-      <circle cx="16" cy="13.5" r="2.75" fill="var(--color-marigold-400)" />
+      <circle cx="16" cy="13.5" r="2.75" fill="var(--color-brand-700)" />
     </svg>
   );
 }
@@ -44,12 +44,12 @@ export function Logo({ size = 32, className, tone = "brand" }: LogoProps) {
       <LogoMark size={size} tone={tone} />
       <span
         className={clsx(
-          "font-display font-semibold tracking-tight leading-none",
-          tone === "inverse" ? "text-ivory" : "text-teal-800",
+          "font-display font-extrabold tracking-tight leading-none",
+          tone === "inverse" ? "text-ivory" : "text-ink",
         )}
-        style={{ fontSize: size * 0.72 }}
+        style={{ fontSize: size * 0.7 }}
       >
-        guestlog
+        Guestlog<span className="text-brand-700">.</span>
       </span>
     </span>
   );

@@ -1,66 +1,67 @@
 @import "tailwindcss";
 
 /*
- * Guestlog design tokens: Teal + Marigold on warm ivory.
+ * Guestlog design tokens: Red on clean white.
  *
- * 60 / 30 / 10: ivory surfaces, teal structure and actions, and marigold only
- * as a highlight (welcome light, rating stars, "needs attention").
- * Marigold is never used for body text on light backgrounds (contrast); use
- * marigold-700 when it has to be text.
+ * 60 / 30 / 10: white surfaces with light grey borders, ink text and
+ * structure, and brand red only for primary actions, the active tab and
+ * key highlights. Accent gold is for small highlights (stars, attention dots).
+ * Use the brand-* / accent-* names, never raw hex values in components.
  */
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
 
-  /* Brand: deep teal (700 is the primary) */
-  --color-teal-50: #eef6f5;
-  --color-teal-100: #d5eae7;
-  --color-teal-200: #a9d3cd;
-  --color-teal-300: #74b5ad;
-  --color-teal-400: #3f918a;
-  --color-teal-500: #1f726c;
-  --color-teal-600: #145d58;
-  --color-teal-700: #0f4c4a;
-  --color-teal-800: #0b3937;
-  --color-teal-900: #082826;
+  /* Brand: red (700 is the primary) */
+  --color-brand-50: #fdf3f3;
+  --color-brand-100: #fbe4e4;
+  --color-brand-200: #f6c9c9;
+  --color-brand-300: #efa3a3;
+  --color-brand-400: #e57171;
+  --color-brand-500: #dc4c4c;
+  --color-brand-600: #d73a3a;
+  --color-brand-700: #d32f2f;
+  --color-brand-800: #b42525;
+  --color-brand-900: #911f1f;
 
-  /* Accent: marigold (400 is the brand accent) */
-  --color-marigold-50: #fdf6e9;
-  --color-marigold-100: #fae8c4;
-  --color-marigold-200: #f5d18a;
-  --color-marigold-300: #efbb5a;
-  --color-marigold-400: #e8a33d;
-  --color-marigold-500: #d48a22;
-  --color-marigold-600: #b06d16;
-  --color-marigold-700: #8a5413;
+  /* Accent: gold (400 is the accent; 700 when it must be text) */
+  --color-accent-50: #fdf8e8;
+  --color-accent-100: #fbefc6;
+  --color-accent-200: #f7e08e;
+  --color-accent-300: #f3d265;
+  --color-accent-400: #f0c94b;
+  --color-accent-500: #d9ac2c;
+  --color-accent-600: #b0861c;
+  --color-accent-700: #876515;
 
-  /* Neutrals: warm, slightly green-tinted to sit with teal */
-  --color-ivory: #faf7f2;
-  --color-paper: #ffffff;
-  --color-sand: #f3eee5;
-  --color-line: #e7e1d6;
-  --color-line-strong: #d6cebf;
-  --color-ink: #1a2423;
-  --color-ink-soft: #3d4a48;
-  --color-muted: #66726f;
+  /* Neutrals: near-white with a faint sage tint */
+  --color-ivory: #ffffff; /* page background */
+  --color-paper: #ffffff; /* cards */
+  --color-sand: #f6f7f5; /* hover, inset panels */
+  --color-line: #e7e9e5;
+  --color-line-strong: #d9dcd6;
+  --color-ink: #242424;
+  --color-ink-soft: #4f5a52;
+  --color-muted: #6c736c;
 
   /* Room status */
-  --color-ready: #2f7d55;
-  --color-ready-bg: #e5f3ea;
-  --color-occupied: #0f4c4a;
-  --color-occupied-bg: #d5eae7;
-  --color-cleaning: #8a5413;
-  --color-cleaning-bg: #fae8c4;
+  --color-ready: #3e6b5b;
+  --color-ready-bg: #e8f1ec;
+  --color-occupied: #b5502f;
+  --color-occupied-bg: #fbece6;
+  --color-cleaning: #876515;
+  --color-cleaning-bg: #fbf1d3;
   --color-maintenance: #57606a;
   --color-maintenance-bg: #eceef0;
 
-  /* Feedback */
-  --color-danger: #b42318;
+  /* Feedback (deeper than brand red so errors stay distinct from actions) */
+  --color-danger: #a8231b;
   --color-danger-bg: #fdecea;
 
-  --radius-card: 14px;
-  --shadow-card: 0 1px 2px rgb(26 36 35 / 0.04), 0 1px 1px rgb(26 36 35 / 0.03);
-  --shadow-pop: 0 10px 30px -10px rgb(26 36 35 / 0.25);
+  --radius-card: 12px;
+  --shadow-card: none;
+  --shadow-pop: 0 12px 32px -12px rgb(36 36 36 / 0.22);
+  --shadow-float: 0 10px 30px -8px rgb(36 36 36 / 0.18), 0 2px 6px rgb(36 36 36 / 0.05);
 }
 
 @layer base {
@@ -69,13 +70,13 @@
   }
   body {
     @apply bg-ivory text-ink font-sans antialiased;
-    font-feature-settings: "ss01", "cv11";
-  }
+      }
   h1, h2, h3 {
-    @apply text-ink;
+    @apply text-ink font-display;
+    letter-spacing: -0.02em;
   }
   :focus-visible {
-    outline: 2px solid var(--color-teal-500);
+    outline: 2px solid var(--color-brand-500);
     outline-offset: 2px;
   }
   /* Rupee amounts and room numbers line up in tables */

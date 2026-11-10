@@ -213,8 +213,8 @@ export const Select = forwardRef<HTMLSelectElement, Props>(function Select(
         onKeyDown={onKey}
         className={clsx(
           "flex h-10 w-full items-center gap-2 rounded-lg border bg-paper pr-2.5 pl-3 text-left text-[15px] transition-colors",
-          "focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-sand disabled:text-muted",
-          invalid ? "border-danger" : open ? "border-teal-500 ring-2 ring-teal-200" : "border-line-strong hover:border-ink-soft/40",
+          "focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-sand disabled:text-muted",
+          invalid ? "border-danger" : open ? "border-ink/40 ring-3 ring-ink/5" : "border-line hover:border-line-strong",
         )}
       >
         <span className={clsx("min-w-0 flex-1 truncate", empty ? "text-muted/80" : "text-ink")}>
@@ -253,12 +253,12 @@ export const Select = forwardRef<HTMLSelectElement, Props>(function Select(
                 className={clsx(
                   "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-[15px]",
                   o.disabled && "cursor-not-allowed opacity-50",
-                  i === active ? "bg-teal-50 text-teal-900" : "text-ink",
+                  i === active ? "bg-brand-50 text-brand-900" : "text-ink",
                   isSel && "font-semibold",
                 )}
               >
                 <span className={clsx("min-w-0 flex-1 truncate", o.value === "" && "text-muted")}>{o.value === "" && o.text === "—" ? "None" : o.label}</span>
-                {isSel && <Check className="size-4 shrink-0 text-teal-700" aria-hidden />}
+                {isSel && <Check className="size-4 shrink-0 text-brand-700" aria-hidden />}
               </li>
             );
           })}

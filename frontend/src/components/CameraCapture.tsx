@@ -347,7 +347,7 @@ function Redactor({ image, instruction, onCancel, onDone }: { image: Blob; instr
   return (
     <Overlay onClose={onCancel} title="Hide the Aadhaar number">
       <p className="flex items-start gap-2 px-4 pb-3 text-sm text-ivory/80">
-        <EyeOff className="mt-0.5 size-4 shrink-0 text-marigold-300" aria-hidden />
+        <EyeOff className="mt-0.5 size-4 shrink-0 text-accent-300" aria-hidden />
         {instruction}
       </p>
       <div className="flex flex-1 items-center justify-center overflow-hidden px-4">
@@ -377,7 +377,7 @@ function Redactor({ image, instruction, onCancel, onDone }: { image: Blob; instr
         <Button variant="ghost" className="text-ivory hover:bg-white/10 hover:text-ivory" onClick={() => onDone(image)}>
           Keep without hiding
         </Button>
-        <Button disabled={!rects.length} onClick={done} className="bg-marigold-400 text-ink hover:bg-marigold-300">
+        <Button disabled={!rects.length} onClick={done} className="bg-accent-400 text-ink hover:bg-accent-300">
           Save masked photo
         </Button>
       </div>

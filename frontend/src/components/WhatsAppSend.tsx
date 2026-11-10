@@ -111,7 +111,7 @@ export function WhatsAppSend({ propertyId, stayId, reservationId, kind, open, on
           </p>
           <p className="mt-3 text-muted">
             Nothing opened?{" "}
-            <a href={whatsappURL(phone, body, target(p!.openIn))} target="_blank" rel="noopener" className="font-semibold text-teal-700 hover:underline">
+            <a href={whatsappURL(phone, body, target(p!.openIn))} target="_blank" rel="noopener" className="font-semibold text-brand-700 hover:underline">
               Open WhatsApp again
             </a>
           </p>
@@ -120,7 +120,7 @@ export function WhatsAppSend({ propertyId, stayId, reservationId, kind, open, on
       ) : (
         <div className="flex flex-col gap-4">
           {p!.warnings.length > 0 && (
-            <ul className="flex flex-col gap-1.5 rounded-lg border border-marigold-200 bg-marigold-50 px-3 py-2.5 text-sm text-marigold-700">
+            <ul className="flex flex-col gap-1.5 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5 text-sm text-accent-700">
               {p!.warnings.map((w) => (
                 <li key={w} className="flex gap-2">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />

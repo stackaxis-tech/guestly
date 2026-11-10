@@ -55,7 +55,7 @@ export function TodayPage() {
                 <span className={clsx("size-2 rounded-full", statusMeta[k].bar)} aria-hidden />
                 <span className="text-sm font-medium text-ink-soft">{statusMeta[k].label}</span>
               </div>
-              <p className="tabular mt-2 font-display text-3xl font-semibold">{s ? s[k] : "–"}</p>
+              <p className="tabular mt-2 font-display text-3xl font-bold">{s ? s[k] : "–"}</p>
             </Card>
           </Link>
         ))}
@@ -64,7 +64,7 @@ export function TodayPage() {
       {s && s.cleaning > 0 && (
         <Link
           to="/rooms"
-          className="mt-4 flex items-center gap-3 rounded-xl border border-marigold-200 bg-marigold-50 px-4 py-3 text-sm text-marigold-700 hover:bg-marigold-100"
+          className="mt-4 flex items-center gap-3 rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-700 hover:bg-accent-100"
         >
           <Sparkles className="size-4 shrink-0" aria-hidden />
           <span className="flex-1">
@@ -86,7 +86,7 @@ export function TodayPage() {
           <ul className="divide-y divide-line">
             {arrivals.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-5 py-3">
-                <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg bg-teal-50 font-display text-lg font-semibold text-teal-800">{r.roomNumber}</span>
+                <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-sand font-display text-lg font-bold text-ink">{r.roomNumber}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold">{r.guestName}</span>
                   <span className="block truncate text-xs text-muted">
@@ -129,7 +129,7 @@ export function TodayPage() {
             {staying.length === 0 ? (
               <div className="px-5 py-8 text-center">
                 <p className="text-sm text-muted">No other guests in-house.</p>
-                <Link to="/check-in" className="mt-2 inline-block text-sm font-semibold text-teal-700 hover:underline">
+                <Link to="/check-in" className="mt-2 inline-block text-sm font-semibold text-brand-700 hover:underline">
                   Check a guest in
                 </Link>
               </div>

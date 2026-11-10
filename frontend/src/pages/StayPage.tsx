@@ -100,7 +100,7 @@ function BillTable({ bill }: { bill: Bill }) {
           <dt>Paid</dt>
           <dd className="tabular">{rupees(bill.paid)}</dd>
         </div>
-        <div className={clsx("flex justify-between text-base font-semibold", bill.balance > 0 ? "text-danger" : bill.balance < 0 ? "text-marigold-700" : "text-ready")}>
+        <div className={clsx("flex justify-between text-base font-semibold", bill.balance > 0 ? "text-danger" : bill.balance < 0 ? "text-accent-700" : "text-ready")}>
           <dt>{bill.balance > 0 ? "Balance due" : bill.balance < 0 ? "Paid extra (refund due)" : "Settled"}</dt>
           <dd className="tabular">{rupees(Math.abs(bill.balance))}</dd>
         </div>
@@ -152,13 +152,13 @@ export function StayPage() {
       )}
 
       <header className="mb-6 flex flex-wrap items-start gap-4">
-        <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-teal-700 text-ivory">
-          <span className="text-[10px] font-semibold tracking-wide text-teal-100 uppercase">Room</span>
-          <span className="tabular font-display text-xl leading-none font-semibold">{s.roomNumber}</span>
+        <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-ink text-white">
+          <span className="text-[10px] font-semibold tracking-wide text-brand-100 uppercase">Room</span>
+          <span className="tabular font-display text-xl leading-none font-bold">{s.roomNumber}</span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-[26px] leading-tight font-semibold tracking-tight">{s.guestName}</h1>
+            <h1 className="font-display text-[26px] leading-tight font-bold tracking-tight">{s.guestName}</h1>
             <span
               className={clsx(
                 "rounded-full px-2.5 py-0.5 text-xs font-semibold",
@@ -195,7 +195,7 @@ export function StayPage() {
               <ul className="flex flex-col gap-2">
                 {s.companions.map((c) => (
                   <li key={c.id}>
-                    <Link to={`/guests/${c.id}`} className="text-sm font-medium text-teal-700 hover:underline">
+                    <Link to={`/guests/${c.id}`} className="text-sm font-medium text-brand-700 hover:underline">
                       {c.name}
                     </Link>
                     <span className="text-sm text-muted"> · {countryName(c.nationality)}</span>
@@ -264,7 +264,7 @@ export function StayPage() {
                         {p.receivedBy && ` · ${p.receivedBy}`}
                       </span>
                     </span>
-                    <span className={clsx("tabular font-semibold", p.amount < 0 && "text-marigold-700")}>{p.amount < 0 ? `−${rupees(-p.amount)}` : rupees(p.amount)}</span>
+                    <span className={clsx("tabular font-semibold", p.amount < 0 && "text-accent-700")}>{p.amount < 0 ? `−${rupees(-p.amount)}` : rupees(p.amount)}</span>
                   </li>
                 ))}
               </ul>
@@ -297,7 +297,7 @@ function GuestCard({ stay: s }: { stay: StayDetail }) {
           )}
         </div>
         <div className="min-w-0 text-sm">
-          <Link to={`/guests/${g.id}`} className="font-semibold text-teal-700 hover:underline">
+          <Link to={`/guests/${g.id}`} className="font-semibold text-brand-700 hover:underline">
             {g.name}
           </Link>
           {g.phone && (
@@ -413,7 +413,7 @@ function ChargeSheet({ stay, onClose }: { stay: StayDetail; onClose: () => void 
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
           {QUICK_SERVICES.map((x) => (
-            <button key={x} type="button" onClick={() => setDesc(x)} className={clsx("rounded-full border px-3 py-1 text-sm", desc === x ? "border-teal-700 bg-teal-50 text-teal-800" : "border-line-strong hover:bg-sand")}>
+            <button key={x} type="button" onClick={() => setDesc(x)} className={clsx("rounded-full border px-3 py-1 text-sm", desc === x ? "border-brand-700 bg-brand-50 text-brand-800" : "border-line-strong hover:bg-sand")}>
               {x}
             </button>
           ))}
@@ -641,7 +641,7 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
               {!settleLater && <PaymentFields {...{ amount, setAmount, mode, setMode, reference, setReference, errors }} prefix="payment." label="Collecting now" />}
               {canManage(user?.role) || user?.role === "front_desk" ? (
                 <label className="flex items-start gap-3 text-sm">
-                  <input type="checkbox" className="mt-0.5 size-4 accent-teal-700" checked={settleLater} onChange={(e) => setSettleLater(e.target.checked)} />
+                  <input type="checkbox" className="mt-0.5 size-4 accent-brand-700" checked={settleLater} onChange={(e) => setSettleLater(e.target.checked)} />
                   <span>
                     Guest will pay later
                     <span className="block text-muted">Check out now and keep {rupees(bal)} as due. You can record the payment on this stay later.</span>
@@ -652,7 +652,7 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
           )}
           {bal < 0 && (
             <div className="flex flex-col gap-3 border-t border-line pt-4">
-              <p className="text-sm text-marigold-700">The guest paid {rupees(-bal)} more than the final bill. Refund it now:</p>
+              <p className="text-sm text-accent-700">The guest paid {rupees(-bal)} more than the final bill. Refund it now:</p>
               <PaymentFields {...{ amount, setAmount, mode, setMode, reference, setReference, errors }} prefix="refund." label="Refunding" />
             </div>
           )}

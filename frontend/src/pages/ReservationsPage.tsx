@@ -28,10 +28,10 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const onDay = (r: Reservation, day: string) => r.checkIn <= day && day < r.checkOut;
 
 function shade(count: number): string {
-  if (count >= 6) return "border-teal-400 bg-teal-300";
-  if (count >= 4) return "border-teal-300 bg-teal-200";
-  if (count >= 2) return "border-teal-200 bg-teal-100";
-  if (count === 1) return "border-teal-100 bg-teal-50";
+  if (count >= 6) return "border-brand-400 bg-brand-300";
+  if (count >= 4) return "border-brand-300 bg-brand-200";
+  if (count >= 2) return "border-brand-200 bg-brand-100";
+  if (count === 1) return "border-brand-100 bg-brand-50";
   return "border-line bg-paper";
 }
 
@@ -126,25 +126,25 @@ export function ReservationsPage() {
                         "relative flex aspect-square flex-col rounded-lg border p-1.5 text-left transition-colors sm:p-2 lg:aspect-[1.25]",
                         shade(count),
                         !inMonth && "opacity-45",
-                        selected === iso ? "ring-2 ring-teal-700 ring-offset-1" : "hover:border-line-strong",
+                        selected === iso ? "ring-2 ring-brand-700 ring-offset-1" : "hover:border-line-strong",
                       )}
                     >
-                      <span className={clsx("tabular text-sm font-semibold", iso === today ? "text-marigold-700" : "text-ink")}>{d.getDate()}</span>
-                      {iso === today && <span className="absolute top-2 right-2 size-1.5 rounded-full bg-marigold-400" aria-hidden />}
-                      {count > 0 && <span className="tabular mt-auto text-[11px] font-semibold text-teal-800">{count}</span>}
+                      <span className={clsx("tabular text-sm font-semibold", iso === today ? "text-accent-700" : "text-ink")}>{d.getDate()}</span>
+                      {iso === today && <span className="absolute top-2 right-2 size-1.5 rounded-full bg-accent-400" aria-hidden />}
+                      {count > 0 && <span className="tabular mt-auto text-[11px] font-semibold text-brand-800">{count}</span>}
                     </button>
                   );
                 })}
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-marigold-400" aria-hidden /> Today
+                  <span className="size-2 rounded-full bg-accent-400" aria-hidden /> Today
                 </span>
                 {[
-                  ["1 booking", "bg-teal-50 border-teal-100"],
-                  ["2–3", "bg-teal-100 border-teal-200"],
-                  ["4–5", "bg-teal-200 border-teal-300"],
-                  ["6+", "bg-teal-300 border-teal-400"],
+                  ["1 booking", "bg-brand-50 border-brand-100"],
+                  ["2–3", "bg-brand-100 border-brand-200"],
+                  ["4–5", "bg-brand-200 border-brand-300"],
+                  ["6+", "bg-brand-300 border-brand-400"],
                 ].map(([label, cls]) => (
                   <span key={label} className="flex items-center gap-1.5">
                     <span className={clsx("size-3 rounded border", cls)} aria-hidden /> {label}
@@ -168,7 +168,7 @@ export function ReservationsPage() {
             <div className="px-5 py-8 text-center">
               <p className="text-sm text-muted">No bookings on this day.</p>
               {selected >= today && (
-                <button type="button" onClick={() => setEditing("new")} className="mt-2 text-sm font-semibold text-teal-700 hover:underline">
+                <button type="button" onClick={() => setEditing("new")} className="mt-2 text-sm font-semibold text-brand-700 hover:underline">
                   Add a booking
                 </button>
               )}
@@ -214,7 +214,7 @@ export function BookingRow({ r, onOpen, day }: { r: Reservation; onOpen: () => v
   const arriving = day === r.checkIn;
   return (
     <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-sand/60">
-      <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg bg-teal-50 font-display text-lg font-semibold text-teal-800">{r.roomNumber}</span>
+      <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-sand font-display text-lg font-bold text-ink">{r.roomNumber}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-semibold">{r.guestName}</span>
         <span className="block truncate text-xs text-muted">
@@ -224,7 +224,7 @@ export function BookingRow({ r, onOpen, day }: { r: Reservation; onOpen: () => v
       {r.status === "checked_in" ? (
         <span className="rounded-full bg-occupied-bg px-2 py-0.5 text-xs font-semibold text-occupied">Checked in</span>
       ) : arriving ? (
-        <span className="rounded-full bg-marigold-50 px-2 py-0.5 text-xs font-semibold text-marigold-700">Arrives</span>
+        <span className="rounded-full bg-accent-50 px-2 py-0.5 text-xs font-semibold text-accent-700">Arrives</span>
       ) : null}
       <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
     </button>
@@ -402,7 +402,7 @@ function BookingForm({ booking, initialCheckIn, onClose, onSaved }: { booking: R
             <span className="text-ink-soft">
               Estimated room charge{gstPct > 0 ? ` incl. ${gstPct}% GST` : ""}
             </span>
-            <span className="tabular font-display text-lg font-semibold">{rupees(total)}</span>
+            <span className="tabular font-display text-lg font-bold">{rupees(total)}</span>
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -428,7 +428,7 @@ function BookingForm({ booking, initialCheckIn, onClose, onSaved }: { booking: R
           {(id, d) => <Textarea id={id} aria-describedby={d} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />}
         </Field>
         <label className="flex cursor-pointer items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 size-4 accent-teal-700" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+          <input type="checkbox" className="mt-0.5 size-4 accent-brand-700" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span className="font-medium">Guest agrees to receive WhatsApp messages</span>
         </label>
         {save.error && !(save.error instanceof ApiError && save.error.fields) && <ErrorNote message={save.error.message} />}
@@ -489,7 +489,7 @@ export function BookingSheet({ id, onClose, onEdit }: { id: string; onClose: () 
       >
         <p className="text-sm text-ink-soft">Room {r.roomNumber} becomes free for these dates.</p>
         {r.advanceAmount > 0 && (
-          <p className="mt-3 rounded-lg bg-marigold-50 px-3 py-2 text-sm text-marigold-700">
+          <p className="mt-3 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
             {rupees(r.advanceAmount)} advance was received. If you're returning it, refund the guest separately; Guestlog doesn't record that refund.
           </p>
         )}

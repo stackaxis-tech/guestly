@@ -31,13 +31,13 @@ function InviteForm() {
   if (invite.error) {
     return (
       <>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Link not valid</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Link not valid</h1>
         <div className="mt-6">
           <ErrorNote message={invite.error.message} />
         </div>
         <p className="mt-6 text-sm text-muted">
           Already set your password?{" "}
-          <Link to="/login" className="font-semibold text-teal-700 hover:underline">Sign in</Link>
+          <Link to="/login" className="font-semibold text-brand-700 hover:underline">Sign in</Link>
         </p>
       </>
     );
@@ -46,8 +46,8 @@ function InviteForm() {
   const inv = invite.data!;
   return (
     <>
-      <p className="text-sm font-semibold text-marigold-700">{inv.organization}</p>
-      <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Welcome, {inv.name.split(" ")[0]}</h1>
+      <p className="text-sm font-semibold text-accent-700">{inv.organization}</p>
+      <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Welcome, {inv.name.split(" ")[0]}</h1>
       <p className="mt-2 text-[15px] text-muted">
         Choose a password for <span className="font-medium text-ink">{inv.email}</span>. You'll use it to sign in to Guestlog.
       </p>

@@ -120,12 +120,12 @@ export function PlanFields({ form, prefix = "" }: { form: UseFormReturn<any>; pr
             onClick={() => choose(key)}
             className={clsx(
               "rounded-xl border-2 px-4 py-3 text-left transition-colors",
-              plan === key ? "border-teal-700 bg-teal-50" : "border-line hover:border-line-strong",
+              plan === key ? "border-brand-700 bg-brand-50" : "border-line hover:border-line-strong",
             )}
           >
             <span className="flex items-center justify-between">
               <span className="font-semibold">{title}</span>
-              {plan === key && <Check className="size-4 text-teal-700" aria-hidden />}
+              {plan === key && <Check className="size-4 text-brand-700" aria-hidden />}
             </span>
             <span className="text-sm text-muted">{sub}</span>
           </button>
@@ -147,7 +147,7 @@ export function PlanFields({ form, prefix = "" }: { form: UseFormReturn<any>; pr
       </div>
 
       <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line px-4 py-3 hover:bg-sand/50">
-        <input type="checkbox" className="mt-0.5 size-4 accent-teal-700" {...form.register(n("paid"))} />
+        <input type="checkbox" className="mt-0.5 size-4 accent-brand-700" {...form.register(n("paid"))} />
         <span>
           <span className="block text-sm font-semibold">Payment already received</span>
           <span className="block text-sm text-muted">Record it now and issue the receipt. The paid period starts after any trial.</span>
@@ -186,8 +186,8 @@ export function PlanFields({ form, prefix = "" }: { form: UseFormReturn<any>; pr
 export function InviteCard({ url, name, phone }: { url: string; name: string; phone?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="rounded-xl border border-marigold-200 bg-marigold-50 p-4">
-      <p className="text-sm font-semibold text-marigold-700">Invite link for {name}</p>
+    <div className="rounded-xl border border-accent-200 bg-accent-50 p-4">
+      <p className="text-sm font-semibold text-accent-700">Invite link for {name}</p>
       <p className="mt-0.5 text-sm text-ink-soft">They open it to set their password. It works once and expires in 7 days.</p>
       <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
         <code className="min-w-0 flex-1 truncate text-xs">{url}</code>
@@ -258,7 +258,7 @@ function Section({ step, title, body, children }: { step: number; title: string;
   return (
     <Card>
       <div className="flex gap-3 border-b border-line px-5 py-4">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-teal-700 text-sm font-bold text-ivory">{step}</span>
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-ivory">{step}</span>
         <div>
           <h2 className="font-semibold">{title}</h2>
           <p className="text-sm text-muted">{body}</p>
@@ -332,7 +332,7 @@ export function NewClientPage() {
         <div className="mb-6 flex size-12 items-center justify-center rounded-full bg-ready-bg text-ready">
           <Check className="size-6" aria-hidden />
         </div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">{form.getValues("client.name")} is on Guestlog</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{form.getValues("client.name")} is on Guestlog</h1>
         <p className="mt-2 text-muted">Send the owner their invite so they can set a password and sign in.</p>
         {created.logoError && <div className="mt-4"><ErrorNote message={`Client created, but the logo didn't upload: ${created.logoError} You can add it from the client page.`} /></div>}
         <div className="mt-6">
@@ -365,7 +365,7 @@ export function NewClientPage() {
       <Link to="/admin/clients" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
         <ArrowLeft className="size-4" aria-hidden /> Clients
       </Link>
-      <PageHeader title="New client" description="Set up the business, their first hotel, the owner's login, and their plan." />
+      <PageHeader eyebrow="Guestlog console" title="New client" description="Set up the business, their first hotel, the owner's login, and their plan." />
       <form noValidate onSubmit={form.handleSubmit((v) => create.mutate(v as z.output<typeof schema>))} className="flex flex-col gap-5">
         <Section step={1} title="Business" body="Who Guestlog bills. Shown on their payment receipts.">
           <div className="grid gap-4 sm:grid-cols-2">

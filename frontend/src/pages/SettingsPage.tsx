@@ -282,9 +282,9 @@ function PlanCard() {
   const plan = s.plan === "annual" ? "Annual" : s.plan === "monthly" ? "Monthly" : `Every ${s.periodMonths} months`;
   const ends = new Date(s.endsOn.slice(0, 10) + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   const label: Record<string, [string, string]> = {
-    trial: ["Free trial", "bg-teal-50 text-teal-700"],
+    trial: ["Free trial", "bg-brand-50 text-brand-700"],
     active: ["Active", "bg-ready-bg text-ready"],
-    grace: ["Renewal due", "bg-marigold-50 text-marigold-700"],
+    grace: ["Renewal due", "bg-accent-50 text-accent-700"],
     expired: ["Expired · read-only", "bg-danger-bg text-danger"],
   };
   const [text, cls] = label[b.state];
@@ -425,7 +425,7 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
           {(id, d) => <Input id={id} aria-describedby={d} disabled={readOnly} value={v.wifiPassword} onChange={set("wifiPassword")} />}
         </Field>
         <label className="flex items-start gap-3 rounded-lg border border-line px-4 py-3 sm:col-span-2">
-          <input type="checkbox" className="mt-0.5 size-4 accent-teal-700" disabled={readOnly} checked={v.gstRegistered} onChange={(e) => setV({ ...v, gstRegistered: e.target.checked })} />
+          <input type="checkbox" className="mt-0.5 size-4 accent-brand-700" disabled={readOnly} checked={v.gstRegistered} onChange={(e) => setV({ ...v, gstRegistered: e.target.checked })} />
           <span className="text-sm">
             <span className="font-semibold">GST registered: charge GST on bills</span>
             <span className="block text-muted">Room GST depends on the nightly rate. Confirm the rates with your CA.</span>
@@ -556,7 +556,7 @@ function TemplateSheet({ tpl, vars, propertyId, onClose, onSaved }: { tpl: Tpl; 
     >
       <div className="flex flex-col gap-4">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4 accent-teal-700" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <input type="checkbox" className="size-4 accent-brand-700" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
           Offer this message to staff
         </label>
         <Field label="Message" error={error}>
