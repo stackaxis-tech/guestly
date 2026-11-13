@@ -27,6 +27,7 @@ type Handler struct {
 	Store  storage.Store
 	Signer storage.Signer
 	Box    *secure.Box
+	AppURL string // frontend origin, used to build the guest's invoice link
 }
 
 const maxIDImage = 3 << 20 // 3 MB; the app compresses photos to well under this

@@ -154,12 +154,12 @@ function RoomTile({ room, onClick }: { room: Room; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group relative overflow-hidden rounded-xl border border-line bg-paper p-3.5 pl-4.5 text-left transition-colors hover:border-line-strong hover:bg-sand/40"
+      className="group relative min-w-0 overflow-hidden rounded-xl border border-line bg-paper p-3.5 pl-4.5 text-left transition-colors hover:border-line-strong hover:bg-sand/40"
     >
       <span className={clsx("absolute inset-y-0 left-0 w-1", m.bar)} aria-hidden />
-      <div className="flex items-start justify-between gap-2">
-        <span className="tabular font-display text-2xl font-bold">{room.number}</span>
-        <span className={clsx("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold", m.bg, m.text)}>
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <span className="tabular font-display text-2xl leading-tight font-bold">{room.number}</span>
+        <span className={clsx("inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold", m.bg, m.text)}>
           <span className={clsx("size-1.5 rounded-full", m.bar)} aria-hidden />
           {m.label}
         </span>
@@ -179,8 +179,10 @@ function RoomTile({ room, onClick }: { room: Room; onClick: () => void }) {
       ) : (
         <>
           <p className="mt-2 truncate text-[13px] font-medium text-ink-soft">{room.typeName}</p>
-          <p className="truncate text-xs text-muted">
-            {room.bedType} · <span className="tabular">{rupees(room.baseRate)}</span>
+          <p className="flex min-w-0 text-xs text-muted">
+            <span className="truncate">{room.bedType}</span>
+            <span className="shrink-0 whitespace-pre"> · </span>
+            <span className="tabular shrink-0">{rupees(room.baseRate)}</span>
           </p>
         </>
       )}

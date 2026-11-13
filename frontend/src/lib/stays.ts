@@ -94,8 +94,75 @@ export type StayDetail = StaySummary & {
   charges: { id: string; description: string; quantity: number; unitPrice: number; gstRate: number; chargedOn: string }[];
   payments: StayPayment[];
   bill: Bill;
+  foodPlan: FoodPlan;
+  billTo: BillTo;
+  /** Set once the invoice exists (created automatically at checkout). */
+  invoiceNumber: string;
   messages: { kind: string; phone: string; status: "sent" | "skipped"; userName: string; createdAt: string }[];
 };
+
+export type FoodPlan = "EP" | "CP" | "MAP" | "AP";
+export const foodPlanLabel: Record<FoodPlan, string> = {
+  EP: "EP · Room only",
+  CP: "CP · With breakfast",
+  MAP: "MAP · Breakfast + one meal",
+  AP: "AP · All meals",
+};
+
+/** Who the invoice is addressed to when it isn't the guest (a company, usually). Empty name = the guest. */
+export type BillTo = { name: string; gstin: string; address: string; state: string };
+
+export type InvoiceLine = {
+  date: string;
+  description: string;
+  sac: string;
+  quantity: number;
+  unitPrice: number;
+  taxable: number;
+  gstRateBp: number;
+  cgst: number;
+  sgst: number;
+  total: number;
+};
+
+export type InvoiceDoc = {
+  title: "TAX INVOICE" | "BILL OF SUPPLY";
+  seller: { legalName: string; tradeName: string; addressLines: string[]; gstin: string; state: string; stateCode: string; phone: string; email: string };
+  billTo: { name: string; address: string; gstin: string; state: string; stateCode: string; phone: string };
+  guestName: string;
+  stay: { roomNumber: string; roomType: string; adults: number; children: number; nightlyRate: number; foodPlan: FoodPlan; checkInAt: string; checkOutAt: string; nights: number };
+  lines: InvoiceLine[];
+  taxSummary: { rateBp: number; taxable: number; cgst: number; sgst: number }[];
+  taxable: number;
+  cgst: number;
+  sgst: number;
+  total: number;
+  totalInWords: string;
+  footer: string;
+};
+
+export type Invoice = {
+  id: string;
+  number: string;
+  issuedAt: string;
+  /** ORIGINAL or DUPLICATE: how the next print is labelled. Empty on the guest's share link. */
+  copy: "ORIGINAL" | "DUPLICATE" | "";
+  printCount: number;
+  doc: InvoiceDoc;
+  logoUrl: string;
+  payments: { mode: PayMode; amount: number; at: string }[];
+  paid: number;
+  balance: number;
+  shareUrl: string;
+};
+
+export const useInvoice = (propertyId: string, stayId: string, enabled = true) =>
+  useQuery({
+    queryKey: ["invoice", propertyId, stayId],
+    queryFn: () => api<Invoice>(`/properties/${propertyId}/stays/${stayId}/invoice`),
+    enabled,
+    retry: false,
+  });
 
 export type PayMode = "cash" | "upi" | "card" | "bank" | "other";
 export const payModeLabel: Record<PayMode, string> = { cash: "Cash", upi: "UPI", card: "Card", bank: "Bank transfer", other: "Other" };

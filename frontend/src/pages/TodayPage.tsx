@@ -1,7 +1,7 @@
 import clsx from "clsx";
-import { ArrowRight, BarChart3, LogIn, Sparkles } from "lucide-react";
+import { ArrowRight, LogIn, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button, Card, EmptyState, PageHeader } from "../components/ui";
+import { Button, Card, PageHeader } from "../components/ui";
 import { useAuth } from "../lib/auth";
 import { todayLabel } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
@@ -145,21 +145,6 @@ export function TodayPage() {
           </Card>
         </div>
       )}
-    </>
-  );
-}
-
-export function ReportsPage() {
-  return (
-    <>
-      <PageHeader title="Reports" description="Occupancy, revenue, and guest ratings." />
-      <Card>
-        <EmptyState
-          icon={<BarChart3 className="size-6" />}
-          title="Reports are coming soon"
-          body="Occupancy, average rate, revenue by payment method, and review scores will show here, built from your stays and invoices."
-        />
-      </Card>
     </>
   );
 }

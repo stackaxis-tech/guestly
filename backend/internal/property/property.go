@@ -57,7 +57,8 @@ const Columns = `p.id, p.name, p.address, p.city, p.state, p.pincode, p.phone, p
 	p.invoice_prefix, to_char(p.check_in_time, 'HH24:MI'), to_char(p.check_out_time, 'HH24:MI'), p.created_at, p.logo_key,
 	s.id, s.plan, s.amount, s.period_months, s.is_trial, s.starts_on, s.ends_on, s.grace_days,
 	p.whatsapp_number, p.whatsapp_open_in, p.wifi_name, p.wifi_password, p.gst_registered,
-	p.room_gst_threshold, p.room_gst_low::float8, p.room_gst_high::float8, p.service_gst_rate::float8`
+	p.room_gst_threshold, p.room_gst_low::float8, p.room_gst_high::float8, p.service_gst_rate::float8,
+	p.legal_name, p.invoice_footer`
 
 const From = ` FROM properties p LEFT JOIN subscriptions s ON s.property_id = p.id `
 
@@ -74,7 +75,7 @@ func Scan(row pgx.Row, signer storage.Signer) (Property, error) {
 		&subID, &plan, &amount, &months, &trial, &starts, &ends, &grace,
 		&p.FrontDesk.WhatsAppNumber, &p.FrontDesk.WhatsAppOpenIn, &p.FrontDesk.WifiName, &p.FrontDesk.WifiPassword,
 		&p.FrontDesk.GSTRegistered, &p.FrontDesk.RoomGSTThreshold, &p.FrontDesk.RoomGSTLow, &p.FrontDesk.RoomGSTHigh,
-		&p.FrontDesk.ServiceGSTRate)
+		&p.FrontDesk.ServiceGSTRate, &p.FrontDesk.LegalName, &p.FrontDesk.InvoiceFooter)
 	if err != nil {
 		return p, err
 	}
@@ -316,6 +317,8 @@ type FrontDesk struct {
 	RoomGSTLow       float64 `json:"roomGstLow"`       // percent
 	RoomGSTHigh      float64 `json:"roomGstHigh"`
 	ServiceGSTRate   float64 `json:"serviceGstRate"`
+	LegalName        string  `json:"legalName"`     // name registered under GST, printed on invoices
+	InvoiceFooter    string  `json:"invoiceFooter"` // terms or thank-you line at the bottom of invoices
 }
 
 var allowedGST = map[float64]bool{0: true, 5: true, 12: true, 18: true, 28: true}
@@ -328,6 +331,14 @@ func (h *Handler) UpdateFrontDesk(w http.ResponseWriter, r *http.Request) error 
 	f := map[string]string{}
 	in.WhatsAppNumber = strings.TrimSpace(in.WhatsAppNumber)
 	in.WifiName = strings.TrimSpace(in.WifiName)
+	in.LegalName = strings.TrimSpace(in.LegalName)
+	in.InvoiceFooter = strings.TrimSpace(in.InvoiceFooter)
+	if len(in.LegalName) > 120 {
+		f["legalName"] = "Keep this under 120 characters."
+	}
+	if len(in.InvoiceFooter) > 300 {
+		f["invoiceFooter"] = "Keep this under 300 characters."
+	}
 	if in.WhatsAppOpenIn != "app" && in.WhatsAppOpenIn != "web" {
 		f["whatsappOpenIn"] = "Choose WhatsApp app or WhatsApp Web."
 	}
@@ -344,15 +355,20 @@ func (h *Handler) UpdateFrontDesk(w http.ResponseWriter, r *http.Request) error 
 	}
 	if _, err := h.DB.Exec(r.Context(), `
 		UPDATE properties SET whatsapp_number=$2, whatsapp_open_in=$3, wifi_name=$4, wifi_password=$5, gst_registered=$6,
-			room_gst_threshold=$7, room_gst_low=$8, room_gst_high=$9, service_gst_rate=$10, updated_at=now()
+			room_gst_threshold=$7, room_gst_low=$8, room_gst_high=$9, service_gst_rate=$10, legal_name=$11, invoice_footer=$12, updated_at=now()
 		WHERE id = $1`, ID(r.Context()), in.WhatsAppNumber, in.WhatsAppOpenIn, in.WifiName, in.WifiPassword, in.GSTRegistered,
-		in.RoomGSTThreshold, in.RoomGSTLow, in.RoomGSTHigh, in.ServiceGSTRate); err != nil {
+		in.RoomGSTThreshold, in.RoomGSTLow, in.RoomGSTHigh, in.ServiceGSTRate, in.LegalName, in.InvoiceFooter); err != nil {
 		return err
 	}
 	return h.Get(w, r)
 }
 
 type ctxKey struct{}
+
+// WithID returns a context carrying a property ID, for code that runs outside a request (the seed command).
+func WithID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, ctxKey{}, id)
+}
 
 // ID returns the property ID resolved by Access.
 func ID(ctx context.Context) string {

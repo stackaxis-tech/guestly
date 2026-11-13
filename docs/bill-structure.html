@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guestlog bill structure</title>
+<style>
+:root{--ink:#242424;--muted:#6c736c;--line:#e0e3de;--bg:#f6f7f5;--hi:#fff6d6}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;color:var(--ink);background:var(--bg);padding:24px}
+main{max-width:1000px;margin:auto}h1{font-size:22px;margin:0 0 4px}h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:32px 0 10px}
+.sub{color:var(--muted);margin:0}
+.grid{display:grid;gap:16px;grid-template-columns:1.2fr 1fr}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.paper{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;font-size:12px}
+.row{display:flex;gap:8px;margin-bottom:8px}.box{flex:1;border:1px dashed #b9beb6;border-radius:6px;padding:7px 9px;background:#fff}
+.box b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.logo{flex:0 0 64px;display:flex;align-items:center;justify-content:center;background:var(--hi);border:1px solid #e6d58a;border-radius:6px;font-weight:700;text-align:center;font-size:11px}
+.tbl{border:1px solid var(--line);border-radius:6px;margin:8px 0;overflow:hidden}.tbl div{display:grid;grid-template-columns:50px 1fr 54px 34px 56px 40px 66px;gap:6px;padding:5px 8px;border-bottom:1px solid var(--line)}
+.tbl div:first-child{background:var(--bg);font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase}.tbl div:last-child{border:0}
+.live{background:var(--hi)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:12px}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch}.step{flex:1;min-width:140px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
+.step b{display:block;margin-bottom:3px}.step small{color:var(--muted)}.arrow{align-self:center;color:var(--muted);font-size:20px}
+.num{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;align-items:center;justify-content:center;font-size:12px;margin-bottom:6px}
+table.t{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}.t th,.t td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}.t th{background:var(--bg);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600}.new{background:#e8f1ec;color:#3e6b5b}.chg{background:var(--hi);color:#876515}
+</style></head><body><main>
+<h1>Guestlog bill structure</h1>
+<p class="sub">One standard invoice for every hotel. Only the hotel's logo and details change.</p>
+
+<h2>1 · The invoice</h2>
+<div class="grid">
+<div class="paper">
+  <div class="row"><div class="logo">Client<br>logo</div>
+    <div class="box"><b>Seller</b>GST name · address · phone · GSTIN</div>
+    <div class="box"><b>Document</b>TAX INVOICE · No. INV/26-27/0001 · Date · ORIGINAL / DUPLICATE</div></div>
+  <div class="row"><div class="box"><b>Bill to</b>Guest, or company + GSTIN + state</div>
+    <div class="box"><b>Stay</b>Guest · room · check-in / out · nights · guests · meal plan · place of supply</div></div>
+  <div class="tbl"><div><span>Date</span><span>Description</span><span>SAC</span><span>Qty</span><span>Rate</span><span>GST</span><span>Amount</span></div>
+  <div><span>12 Nov</span><span>Room 208 · Deluxe · 1 night</span><span>996311</span><span>1</span><span>2,566.67</span><span>5%</span><span>2,566.67</span></div>
+  <div><span>12 Nov</span><span>Breakfast</span><span>996331</span><span>2</span><span>250</span><span>5%</span><span>500</span></div></div>
+  <div class="row"><div class="box"><b>Tax summary</b>Per rate: taxable · CGST · SGST</div>
+    <div class="box"><b>Totals</b>Taxable · CGST · SGST · <b style="display:inline;color:inherit">Total</b> · in words</div></div>
+  <div class="row"><div class="box live"><b>Settlement (live)</b>Payments · refunds · balance due / paid in full</div></div>
+  <div class="row"><div class="box"><b>Footer</b>Hotel's note · computer-generated · signatory</div></div>
+  <div class="legend"><span><i style="background:#fff;border:1px dashed #b9beb6"></i>Frozen when issued</span><span><i style="background:var(--hi);border:1px solid #e6d58a"></i>Live / client's own</span></div>
+</div>
+<div>
+  <table class="t"><tr><th>Rule</th><th>Decision</th></tr>
+  <tr><td>Numbering</td><td><code>PREFIX/FY/0001</code>, one counter per hotel per April–March year. No gaps. Max 16 characters.</td></tr>
+  <tr><td>Tax split</td><td>Always CGST + SGST. A hotel's place of supply is the hotel.</td></tr>
+  <tr><td>Not GST registered</td><td>Title becomes BILL OF SUPPLY. No tax columns.</td></tr>
+  <tr><td>Edits</td><td>Frozen after issue. Only payments stay live.</td></tr>
+  <tr><td>Copies</td><td>First print = ORIGINAL. Later prints = DUPLICATE.</td></tr>
+  <tr><td>SAC</td><td>Rooms 996311. Food 996331. Others by name, else 9963.</td></tr>
+  <tr><td>Money</td><td>Paise, integer maths. No floats.</td></tr></table>
+</div></div>
+
+<h2>2 · Flow</h2>
+<div class="flow">
+<div class="step"><span class="num">1</span><b>Bill to</b><small>Optional company + GSTIN. Set any time before checkout.</small></div><div class="arrow">→</div>
+<div class="step"><span class="num">2</span><b>Checkout</b><small>Collect balance. Bill is final.</small></div><div class="arrow">→</div>
+<div class="step"><span class="num">3</span><b>Invoice created</b><small>Number taken, copy frozen, share link made.</small></div><div class="arrow">→</div>
+<div class="step"><span class="num">4</span><b>Give to guest</b><small>Print · WhatsApp link · copy link <code>/i/token</code></small></div>
+</div>
+
+<h2>3 · What changed in the app</h2>
+<table class="t"><tr><th>Where</th><th>Change</th><th></th></tr>
+<tr><td>Database <code>00005_invoices.sql</code></td><td><code>invoices</code>, <code>invoice_counters</code>; bill-to + meal plan on stays; GST name + footer on hotels</td><td><span class="tag new">new</span></td></tr>
+<tr><td>API</td><td><code>PUT /stays/:id/billing</code> · <code>GET/POST /stays/:id/invoice</code> · <code>POST …/invoice/print</code> · public <code>GET /public/invoices/:token</code></td><td><span class="tag new">new</span></td></tr>
+<tr><td>Checkout</td><td>Creates the invoice. Accepts bill-to details.</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>Bill tax maths</td><td>Integer rounding instead of floats (₹2,566.67 at 5% now gives 64.17 + 64.17).</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>WhatsApp "Bill" message</td><td>Turned on, with the real invoice link.</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>Screens</td><td>Invoice page · guest link page · Billing details sheet · checkout bill-to · Settings: GST name + footer</td><td><span class="tag new">new</span></td></tr></table>
+
+<h2>4 · Not in this round</h2>
+<table class="t"><tr><td>Round-off to whole rupees</td><td>Needs a decision: it changes every balance.</td></tr>
+<tr><td>Credit note / cancel invoice</td><td>Needed if an issued invoice must be corrected.</td></tr>
+<tr><td>IGST</td><td>Not needed for hotel stays.</td></tr>
+<tr><td>Download PDF file</td><td>Print → Save as PDF works today.</td></tr></table>
+</main></body></html>

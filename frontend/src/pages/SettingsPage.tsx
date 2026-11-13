@@ -378,6 +378,8 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
           roomGstLow: Number(v.roomGstLow),
           roomGstHigh: Number(v.roomGstHigh),
           serviceGstRate: Number(v.serviceGstRate),
+          legalName: v.legalName,
+          invoiceFooter: v.invoiceFooter,
         },
       }),
     onSuccess: () => {
@@ -439,6 +441,18 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
           {rateSelect("roomGstHigh", "Room >")}
           {rateSelect("serviceGstRate", "Services")}
         </div>
+      </div>
+      <div className="grid gap-4 border-t border-line px-5 py-5">
+        <div>
+          <h3 className="text-sm font-semibold">Invoice</h3>
+          <p className="text-sm text-muted">Printed on every guest invoice, next to your logo and GSTIN.</p>
+        </div>
+        <Field label="Name registered under GST" optional error={errors.legalName} hint="Leave empty to use the property name.">
+          {(id, d) => <Input id={id} aria-describedby={d} disabled={readOnly} value={v.legalName} onChange={set("legalName")} invalid={!!errors.legalName} />}
+        </Field>
+        <Field label="Footer note" optional error={errors.invoiceFooter} hint="Terms or a thank-you line at the bottom of the invoice.">
+          {(id, d) => <Textarea id={id} aria-describedby={d} rows={2} disabled={readOnly} value={v.invoiceFooter} onChange={set("invoiceFooter")} invalid={!!errors.invoiceFooter} />}
+        </Field>
       </div>
       {!readOnly && (
         <div className="flex items-center justify-end gap-3 border-t border-line px-5 py-4">

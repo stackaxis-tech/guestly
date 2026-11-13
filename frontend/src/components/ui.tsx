@@ -62,7 +62,7 @@ export function Field({ label, error, hint, optional, children, className }: Fie
   const id = useId();
   const msgId = `${id}-msg`;
   return (
-    <div className={clsx("flex flex-col gap-1.5", className)}>
+    <div className={clsx("flex min-w-0 flex-col gap-1.5", className)}>
       <label htmlFor={id} className="text-[13px] font-semibold text-ink">
         {label}
         {optional && <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted uppercase">Optional</span>}
@@ -269,7 +269,7 @@ export function Sheet({
       onClick={(e) => e.target === ref.current && onClose()}
       className={clsx(
         "m-0 ml-auto h-dvh max-h-dvh w-full max-w-md bg-paper p-0 text-ink shadow-[var(--shadow-pop)]",
-        "backdrop:bg-ink/30 max-sm:mt-auto max-sm:h-auto max-sm:max-h-[90dvh] max-sm:max-w-none max-sm:rounded-t-2xl",
+        "backdrop:bg-ink/30 max-sm:top-auto max-sm:bottom-0 max-sm:h-auto max-sm:max-h-[90dvh] max-sm:max-w-none max-sm:rounded-t-2xl",
       )}
     >
       <div className="flex h-full flex-col">
@@ -283,7 +283,7 @@ export function Sheet({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-line px-5 py-4">{footer}</div>}
+        {footer && <div className="flex justify-end gap-2 border-t border-line px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>}
       </div>
     </dialog>
   );

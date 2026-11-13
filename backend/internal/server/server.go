@@ -29,7 +29,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 	authH := &auth.Handler{DB: pool, Tokens: tokens, RefreshTTL: cfg.RefreshTTL, SecureCookies: cfg.SecureCookies}
 	propH := &property.Handler{DB: pool, Store: store, Signer: signer}
 	roomH := &room.Handler{DB: pool}
-	stayH := &stay.Handler{DB: pool, Store: store, Signer: signer, Box: box}
+	stayH := &stay.Handler{DB: pool, Store: store, Signer: signer, Box: box, AppURL: cfg.AppURL}
 	adminH := &admin.Handler{DB: pool, Tokens: tokens, Store: store, Signer: signer,
 		RefreshTTL: cfg.RefreshTTL, SecureCookies: cfg.SecureCookies, AppURL: cfg.AppURL}
 
@@ -53,6 +53,9 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Handle("/files/*", storage.Serve(store, signer))
+
+		// A guest's invoice link. No login: the long random token is the credential.
+		r.Method("GET", "/public/invoices/{token}", h(stayH.PublicInvoice))
 
 		// ---- Hotel staff ----
 		r.Route("/auth", func(r chi.Router) {
@@ -86,6 +89,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 				r.With(managers).Method("DELETE", "/rooms/{roomID}", h(roomH.Delete))
 				r.Method("PATCH", "/rooms/{roomID}/status", h(roomH.SetStatus))
 				r.With(managers).Method("PUT", "/front-desk", h(propH.UpdateFrontDesk))
+				r.With(managers).Method("GET", "/reports", h(stayH.Report))
 
 				r.Group(func(r chi.Router) {
 					r.Use(desk)
@@ -107,6 +111,10 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 					r.Method("POST", "/stays/{stayID}/payments", h(stayH.AddPayment))
 					r.Method("GET", "/stays/{stayID}/checkout", h(stayH.CheckoutPreview))
 					r.Method("POST", "/stays/{stayID}/checkout", h(stayH.Checkout))
+					r.Method("PUT", "/stays/{stayID}/billing", h(stayH.UpdateBilling))
+					r.Method("GET", "/stays/{stayID}/invoice", h(stayH.GetInvoice))
+					r.Method("POST", "/stays/{stayID}/invoice", h(stayH.IssueInvoice))
+					r.Method("POST", "/stays/{stayID}/invoice/print", h(stayH.PrintInvoice))
 					r.With(managers).Method("POST", "/stays/{stayID}/cancel", h(stayH.Cancel))
 					r.Method("GET", "/stays/{stayID}/messages/{kind}", h(stayH.PreviewMessage))
 					r.Method("POST", "/stays/{stayID}/messages", h(stayH.LogMessage))

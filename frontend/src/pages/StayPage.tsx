@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, BedDouble, CalendarPlus, Check, CheckCircle2, Eye, IdCard, LogOut, MessageCircle, Phone, Plus, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, BedDouble, CalendarPlus, Check, CheckCircle2, Eye, FileText, IdCard, LogOut, MessageCircle, Phone, Plus, Trash2, Wallet } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { WhatsAppSend, messageTitle } from "../components/WhatsAppSend";
 import { Button, Card, Disclosure, ErrorNote, Field, Input, Select, Sheet, Spinner, Stepper, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
@@ -12,6 +12,7 @@ import { useCurrentProperty } from "../lib/property";
 import {
   COUNTRIES,
   docTypeLabel,
+  foodPlanLabel,
   formatDateTime,
   formatDay,
   formatPhone,
@@ -19,6 +20,7 @@ import {
   payModeLabel,
   useStay,
   type Bill,
+  type FoodPlan,
   type GuestDocument,
   type PayMode,
   type StayDetail,
@@ -114,9 +116,10 @@ export function StayPage() {
   const property = useCurrentProperty();
   const pid = property.id;
   const q = useStay(pid, stayId);
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const justCheckedIn = params.get("checkedIn") === "1";
-  const [sheet, setSheet] = useState<"welcome" | "charge" | "payment" | "checkout" | "edit" | null>(null);
+  const [sheet, setSheet] = useState<"welcome" | "charge" | "payment" | "checkout" | "edit" | "billing" | null>(null);
 
   // Offer the welcome message once, right after check-in.
   const offeredWelcome = useRef(false);
@@ -228,9 +231,17 @@ export function StayPage() {
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
             <h2 className="font-semibold">Bill</h2>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {s.status === "checked_out" && (
+                <Button size="sm" variant="secondary" icon={<FileText className="size-4" />} onClick={() => navigate(`/stays/${s.id}/invoice`)}>
+                  {s.invoiceNumber ? `Invoice ${s.invoiceNumber}` : "Create invoice"}
+                </Button>
+              )}
               {inHouse && (
                 <>
+                  <Button size="sm" variant="ghost" icon={<FileText className="size-4" />} onClick={() => setSheet("billing")}>
+                    Billing details
+                  </Button>
                   <Button size="sm" variant="ghost" icon={<CalendarPlus className="size-4" />} onClick={() => setSheet("edit")}>
                     Extend / edit
                   </Button>
@@ -276,6 +287,7 @@ export function StayPage() {
       <WhatsAppSend propertyId={pid} stayId={s.id} kind="welcome" open={sheet === "welcome"} onClose={() => setSheet(null)} />
       {sheet === "charge" && <ChargeSheet stay={s} onClose={() => setSheet(null)} />}
       {sheet === "payment" && <PaymentSheet stay={s} onClose={() => setSheet(null)} />}
+      {sheet === "billing" && <BillingSheet stay={s} onClose={() => setSheet(null)} />}
       {sheet === "edit" && <EditStaySheet stay={s} onClose={() => setSheet(null)} />}
       {sheet === "checkout" && <CheckoutSheet stay={s} onClose={() => setSheet(null)} />}
     </>
@@ -435,6 +447,73 @@ function ChargeSheet({ stay, onClose }: { stay: StayDetail; onClose: () => void 
   );
 }
 
+type BillingState = { foodPlan: FoodPlan; billToName: string; billToGstin: string; billToAddress: string; billToState: string };
+
+// The `?.` guards keep this screen working if the API is an older build that doesn't send billing fields yet.
+const billingFrom = (s: StayDetail): BillingState => ({
+  foodPlan: s.foodPlan ?? "EP",
+  billToName: s.billTo?.name ?? "",
+  billToGstin: s.billTo?.gstin ?? "",
+  billToAddress: s.billTo?.address ?? "",
+  billToState: s.billTo?.state ?? "",
+});
+
+/** Who the invoice is for and the meal plan. Empty company = the invoice is addressed to the guest. */
+function BillingFields({ value, onChange, errors, prefix = "" }: { value: BillingState; onChange: (v: BillingState) => void; errors: Record<string, string>; prefix?: string }) {
+  const set = (k: keyof BillingState) => (e: { target: { value: string } }) => onChange({ ...value, [k]: e.target.value });
+  const err = (k: string) => errors[prefix + k];
+  return (
+    <div className="flex flex-col gap-4">
+      <Field label="Meal plan" error={err("foodPlan")}>
+        {(id, d) => (
+          <Select id={id} aria-describedby={d} value={value.foodPlan} onChange={set("foodPlan")}>
+            {(Object.keys(foodPlanLabel) as FoodPlan[]).map((p) => (
+              <option key={p} value={p}>
+                {foodPlanLabel[p]}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
+      <Field label="Company name" optional error={err("billToName")} hint="Leave empty to bill the guest.">
+        {(id, d) => <Input id={id} aria-describedby={d} value={value.billToName} onChange={set("billToName")} invalid={!!err("billToName")} />}
+      </Field>
+      <Field label="Company GSTIN" optional error={err("billToGstin")}>
+        {(id, d) => <Input id={id} aria-describedby={d} className="font-mono uppercase" placeholder="29ABCDE1234F1Z5" value={value.billToGstin} onChange={set("billToGstin")} invalid={!!err("billToGstin")} />}
+      </Field>
+      <Field label="Company address" optional error={err("billToAddress")}>
+        {(id, d) => <Textarea id={id} aria-describedby={d} rows={2} value={value.billToAddress} onChange={set("billToAddress")} invalid={!!err("billToAddress")} />}
+      </Field>
+      <Field label="State" optional error={err("billToState")}>
+        {(id, d) => <Input id={id} aria-describedby={d} value={value.billToState} onChange={set("billToState")} invalid={!!err("billToState")} />}
+      </Field>
+    </div>
+  );
+}
+
+function BillingSheet({ stay, onClose }: { stay: StayDetail; onClose: () => void }) {
+  const [v, setV] = useState<BillingState>(() => billingFrom(stay));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const save = useStayMutation(stay, "/billing", "PUT", onClose, setErrors);
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Billing details"
+      description="Printed on the invoice. You can also set these at checkout."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button loading={save.isPending} onClick={() => save.mutate(v)}>Save</Button>
+        </>
+      }
+    >
+      <BillingFields value={v} onChange={setV} errors={errors} />
+      {save.error && !(save.error instanceof ApiError && save.error.fields) && <div className="mt-4"><ErrorNote message={save.error.message} /></div>}
+    </Sheet>
+  );
+}
+
 function PaymentFields({
   amount,
   setAmount,
@@ -576,6 +655,9 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
   const [settleLater, setSettleLater] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
+  const [billing, setBilling] = useState<BillingState>(() => billingFrom(stay));
+  const [wa, setWa] = useState(false);
+  const navigate = useNavigate();
   const save = useStayMutation(stay, "/checkout", "POST", () => setDone(true), setErrors);
 
   const bal = preview.data?.balance ?? 0;
@@ -586,7 +668,7 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
   const submit = () => {
     const amt = toPaise(amount) ?? 0;
     const pay = { amount: amt, mode, reference };
-    save.mutate(bal > 0 ? { payment: settleLater ? null : pay, settleLater } : bal < 0 ? { refund: amt > 0 ? pay : null } : {});
+    save.mutate(bal > 0 ? { payment: settleLater ? null : pay, settleLater, billing } : bal < 0 ? { refund: amt > 0 ? pay : null, billing } : { billing });
   };
 
   if (done) {
@@ -595,7 +677,14 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
         open
         onClose={onClose}
         title="Checked out"
-        footer={<Button onClick={onClose}>Done</Button>}
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose}>Done</Button>
+            <Button icon={<FileText className="size-4" />} onClick={() => navigate(`/stays/${stay.id}/invoice`)}>
+              View invoice
+            </Button>
+          </>
+        }
       >
         <div className="flex flex-col items-center py-6 text-center">
           <span className="mb-3 flex size-12 items-center justify-center rounded-full bg-ready-bg text-ready">
@@ -605,7 +694,11 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
           <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
             <BedDouble className="size-4" aria-hidden /> Room {stay.roomNumber} is now set to Cleaning.
           </p>
-          <p className="mt-4 max-w-xs text-xs text-muted">Sending the GST invoice and review request on WhatsApp is coming in the next update.</p>
+          {stay.invoiceNumber && <p className="mt-4 text-sm">Invoice <strong>{stay.invoiceNumber}</strong> is ready.</p>}
+          <Button className="mt-3" variant="secondary" size="sm" icon={<MessageCircle className="size-4" />} onClick={() => setWa(true)}>
+            Send bill on WhatsApp
+          </Button>
+          <WhatsAppSend propertyId={property.id} stayId={stay.id} kind="bill" open={wa} onClose={() => setWa(false)} />
         </div>
       </Sheet>
     );
@@ -636,6 +729,9 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
             Final bill for <strong>{preview.data!.nights} {preview.data!.nights === 1 ? "night" : "nights"}</strong>, checking out now.
           </p>
           <BillTable bill={preview.data!} />
+          <Disclosure summary={billing.billToName ? `Billed to ${billing.billToName}` : "Bill to a company (GST invoice)"}>
+            <BillingFields value={billing} onChange={setBilling} errors={errors} prefix="billing." />
+          </Disclosure>
           {bal > 0 && (
             <div className="flex flex-col gap-4 border-t border-line pt-4">
               {!settleLater && <PaymentFields {...{ amount, setAmount, mode, setMode, reference, setReference, errors }} prefix="payment." label="Collecting now" />}

@@ -27,6 +27,8 @@ export type Property = {
     roomGstLow: number;
     roomGstHigh: number;
     serviceGstRate: number;
+    legalName: string;
+    invoiceFooter: string;
   };
   subscription?: {
     id: string;

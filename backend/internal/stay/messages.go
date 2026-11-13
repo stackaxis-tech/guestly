@@ -48,7 +48,7 @@ var messageKinds = []MessageKind{
 			"Have a lovely stay!",
 	},
 	{
-		Kind: "bill", Title: "Bill at checkout", When: "At checkout (with GST invoices)",
+		Kind: "bill", Title: "Bill at checkout", When: "At checkout", Available: true,
 		DefaultBody: "Hi {guest_name}, thank you for staying at {hotel_name}! 🙏\n\n" +
 			"Your bill: {amount}\nView or download: {invoice_link}\n\nWe hope to see you again.",
 	},
@@ -291,6 +291,7 @@ func (h *Handler) PreviewMessage(w http.ResponseWriter, r *http.Request) error {
 		"amount":        rupeeText(d.Bill.Total),
 		"checkin_time":  formatClock(prop.CheckInTime),
 		"advance":       "",
+		"invoice_link":  h.invoiceLink(ctx, d.ID),
 	}
 	p := preview{Kind: k.Kind, Phone: d.Guest.Phone, Body: Render(t.Body, vars), OpenIn: prop.FrontDesk.WhatsAppOpenIn,
 		Enabled: t.Enabled, Consent: d.Guest.WhatsAppConsent, Warnings: []string{}}
@@ -300,11 +301,23 @@ func (h *Handler) PreviewMessage(w http.ResponseWriter, r *http.Request) error {
 	if !p.Consent {
 		p.Warnings = append(p.Warnings, "The guest didn't agree to WhatsApp messages at check-in.")
 	}
+	if k.Kind == "bill" && vars["invoice_link"] == "" {
+		p.Warnings = append(p.Warnings, "The invoice isn't created yet, so the link is left out.")
+	}
 	if k.Kind == "welcome" && prop.FrontDesk.WifiName == "" {
 		p.Warnings = append(p.Warnings, "Wi-Fi details aren't set up, so they're left out. Add them in Settings.")
 	}
 	httpx.JSON(w, http.StatusOK, p)
 	return nil
+}
+
+// invoiceLink returns the guest's public invoice link, or "" if no invoice exists yet.
+func (h *Handler) invoiceLink(ctx context.Context, stayID string) string {
+	var token string
+	if err := h.DB.QueryRow(ctx, `SELECT share_token FROM invoices WHERE stay_id::text = $1 AND property_id = $2`, stayID, property.ID(ctx)).Scan(&token); err != nil {
+		return ""
+	}
+	return strings.TrimRight(h.AppURL, "/") + "/i/" + token
 }
 
 func nonEmpty(xs ...string) []string {

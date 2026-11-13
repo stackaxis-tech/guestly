@@ -1,7 +1,6 @@
 package stay
 
 import (
-	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -56,7 +55,8 @@ type Bill struct {
 // nearest paisa so CGST and SGST are always equal.
 func MakeLine(desc string, qty int, unit int64, rateBP int) Line {
 	taxable := unit * int64(qty)
-	half := int64(math.Round(float64(taxable) * float64(rateBP) / 2 / 10000))
+	// Integer maths, rounded half up: money never goes through floats.
+	half := (taxable*int64(rateBP) + 10000) / 20000
 	return Line{Description: desc, Quantity: qty, UnitPrice: unit, Taxable: taxable, GSTRateBP: rateBP,
 		CGST: half, SGST: half, Total: taxable + 2*half}
 }

@@ -105,3 +105,26 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Printing: only the invoice goes to paper. */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+@media print {
+  .no-print,
+  header.sticky,
+  nav {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .invoice {
+    break-inside: avoid-page;
+  }
+}

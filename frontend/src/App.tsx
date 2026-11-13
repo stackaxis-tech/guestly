@@ -19,7 +19,9 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { CheckInPage } from "./pages/CheckInPage";
 import { GuestDetailPage, GuestsPage } from "./pages/GuestsPage";
 import { StayPage } from "./pages/StayPage";
-import { ReportsPage, TodayPage } from "./pages/TodayPage";
+import { InvoicePage, PublicInvoicePage } from "./pages/InvoicePage";
+import { ReportsPage } from "./pages/ReportsPage";
+import { TodayPage } from "./pages/TodayPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +65,7 @@ function HotelApp() {
           <Route path="check-in" element={<CheckInPage />} />
           <Route path="reservations" element={<ReservationsPage />} />
           <Route path="stays/:stayId" element={<StayPage />} />
+          <Route path="stays/:stayId/invoice" element={<InvoicePage />} />
           <Route path="guests" element={<GuestsPage />} />
           <Route path="guests/:guestId" element={<GuestDetailPage />} />
           <Route path="reports" element={<ReportsPage />} />
@@ -98,6 +101,15 @@ function AdminApp() {
 
 function Root() {
   const { pathname } = useLocation();
+  // A guest's invoice link works without signing in.
+  if (pathname.startsWith("/i/")) {
+    return (
+      <Routes>
+        <Route path="/i/:token" element={<PublicInvoicePage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
   // The super admin console is web-only.
   if (!isNative && (pathname === "/admin" || pathname.startsWith("/admin/"))) {
     return (

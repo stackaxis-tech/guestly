@@ -504,6 +504,18 @@ type StayDetail struct {
 	Payments   []Payment    `json:"payments"`
 	Bill       Bill         `json:"bill"`
 	Messages   []MessageLog `json:"messages"`
+	FoodPlan   string       `json:"foodPlan"` // EP, CP, MAP or AP
+	BillTo     BillTo       `json:"billTo"`   // empty name = bill the guest
+	// InvoiceNumber is set once the invoice has been created at checkout.
+	InvoiceNumber string `json:"invoiceNumber"`
+}
+
+// BillTo is who the invoice is addressed to when that isn't the guest (a company, usually).
+type BillTo struct {
+	Name    string `json:"name"`
+	GSTIN   string `json:"gstin"`
+	Address string `json:"address"`
+	State   string `json:"state"`
 }
 
 func taxConfig(p property.Property) TaxConfig {
@@ -526,8 +538,12 @@ func (h *Handler) loadStay(ctx context.Context, id string) (StayDetail, error) {
 		return d, err
 	}
 	d.StaySummary = s
-	if err := h.DB.QueryRow(ctx, `SELECT purpose, coming_from, going_to, notes FROM stays WHERE id = $1`, s.ID).
-		Scan(&d.Purpose, &d.ComingFrom, &d.GoingTo, &d.Notes); err != nil {
+	if err := h.DB.QueryRow(ctx, `SELECT purpose, coming_from, going_to, notes, food_plan, bill_to_name, bill_to_gstin, bill_to_address, bill_to_state
+		FROM stays WHERE id = $1`, s.ID).
+		Scan(&d.Purpose, &d.ComingFrom, &d.GoingTo, &d.Notes, &d.FoodPlan, &d.BillTo.Name, &d.BillTo.GSTIN, &d.BillTo.Address, &d.BillTo.State); err != nil {
+		return d, err
+	}
+	if err := h.DB.QueryRow(ctx, `SELECT number FROM invoices WHERE stay_id = $1`, s.ID).Scan(&d.InvoiceNumber); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return d, err
 	}
 	if d.Guest, err = h.loadGuest(ctx, s.GuestID); err != nil {
@@ -867,6 +883,7 @@ type checkoutReq struct {
 	Payment     *paymentInput `json:"payment"` // money collected now
 	Refund      *paymentInput `json:"refund"`  // money returned when the guest overpaid
 	SettleLater bool          `json:"settleLater"`
+	Billing     *billingInput `json:"billing"` // bill-to details given at the desk while checking out
 }
 
 // Checkout fixes the night count, takes the final payment, and sends the room to cleaning.
@@ -882,6 +899,9 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) error {
 	if in.Refund != nil && in.Refund.Amount != 0 {
 		in.Refund.validate(f, "refund.")
 	}
+	if in.Billing != nil {
+		in.Billing.validate(f, "billing.")
+	}
 	if len(f) > 0 {
 		return httpx.Invalid(f)
 	}
@@ -895,6 +915,11 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) error {
 	roomID, _, err := lockStay(ctx, tx, id, "in_house")
 	if err != nil {
 		return err
+	}
+	if in.Billing != nil {
+		if err := saveBilling(ctx, tx, id, *in.Billing); err != nil {
+			return err
+		}
 	}
 	user := auth.FromContext(ctx).UserID
 	if in.Payment != nil && in.Payment.Amount > 0 {
@@ -965,6 +990,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) error {
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	h.tryIssueInvoice(ctx, id) // the GST invoice is created at checkout
 	return h.respondStay(w, r, id, http.StatusOK)
 }
 

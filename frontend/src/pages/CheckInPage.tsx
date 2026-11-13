@@ -781,7 +781,7 @@ export function CheckInPage() {
                 <Field label="Rate per night (before GST)" error={errors.nightlyRate}>
                   {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} invalid={!!errors.nightlyRate} />}
                 </Field>
-                <div className="flex gap-6 sm:col-span-2">
+                <div className="flex flex-wrap gap-x-6 gap-y-4 sm:col-span-2">
                   <Field label="Adults" error={errors.adults}>
                     {(id) => <Stepper id={id} label="adults" min={1} value={Number(adults) || 1} onChange={(n) => setAdults(String(n))} />}
                   </Field>

@@ -5,11 +5,15 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/guestly/backend/internal/config"
 	"github.com/guestly/backend/internal/db"
+	"github.com/guestly/backend/internal/property"
+	"github.com/guestly/backend/internal/stay"
 )
 
 const (
@@ -44,6 +48,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if exists {
+		seedInvoices(ctx, pool)
 		fmt.Println("Demo data already present. Login:", demoEmail, "/", demoPassword)
 		return
 	}
@@ -105,7 +110,91 @@ func main() {
 		VALUES ($1, 'annual', 89900, 12, true, current_date, current_date + 13)`, propID)
 	must(err)
 	must(tx.Commit(ctx))
+	seedInvoices(ctx, pool)
 	fmt.Println("Seeded The Harbour House with 15 rooms. Login:", demoEmail, "/", demoPassword)
+}
+
+type demoCharge struct {
+	desc  string
+	qty   int
+	price int64 // paise, before GST
+}
+
+type demoStay struct {
+	guest, phone, address, room string
+	rate                        int64
+	nights, daysAgo             int
+	foodPlan                    string
+	billName, billGSTIN         string
+	billAddress, billState      string
+	charges                     []demoCharge
+	dueRupees                   int64 // left unpaid, to show a balance
+	mode                        string
+}
+
+// seedInvoices turns on GST for the demo hotel and adds three checked-out stays with invoices,
+// so the invoice, print and WhatsApp screens have something to show. Safe to run again.
+func seedInvoices(ctx context.Context, pool *pgxpool.Pool) {
+	var propID string
+	if err := pool.QueryRow(ctx, `SELECT id FROM properties WHERE name = 'The Harbour House' LIMIT 1`).Scan(&propID); err != nil {
+		return
+	}
+	_, err := pool.Exec(ctx, `UPDATE properties SET gst_registered = true, legal_name = 'Harbour Hospitality Pvt Ltd',
+		invoice_footer = 'Thank you for staying with us. We hope to welcome you again.' WHERE id = $1`, propID)
+	must(err)
+	var n int
+	must(pool.QueryRow(ctx, `SELECT count(*) FROM invoices WHERE property_id = $1`, propID).Scan(&n))
+	if n > 0 {
+		return
+	}
+
+	h := &stay.Handler{DB: pool, AppURL: config.Load().AppURL}
+	now := time.Now().In(property.IST)
+	for _, d := range []demoStay{
+		{guest: "Priya Nair", phone: "+919847012001", address: "12 Lake Road, Thrissur, Kerala", room: "101", rate: 3500_00,
+			nights: 2, daysAgo: 1, foodPlan: "CP", mode: "upi",
+			charges: []demoCharge{{"Breakfast", 2, 250_00}}},
+		{guest: "Rahul Mehta", phone: "+919847012002", address: "Bandra West, Mumbai", room: "201", rate: 3500_00,
+			nights: 3, daysAgo: 3, foodPlan: "MAP", mode: "bank",
+			billName: "Northwind Traders Pvt Ltd", billGSTIN: "27AABCN1234F1Z5", billAddress: "Plot 4, Andheri East, Mumbai 400069", billState: "Maharashtra",
+			charges: []demoCharge{{"Dinner", 3, 450_00}, {"Laundry", 1, 300_00}}},
+		{guest: "Anita Roy", phone: "+919847012003", address: "Salt Lake, Kolkata", room: "301", rate: 8000_00,
+			nights: 1, daysAgo: 0, foodPlan: "EP", mode: "cash", dueRupees: 2000,
+			charges: []demoCharge{{"Airport pickup", 1, 1200_00}}},
+	} {
+		in := time.Date(now.Year(), now.Month(), now.Day()-d.daysAgo-d.nights, 14, 0, 0, 0, property.IST)
+		out := in.AddDate(0, 0, d.nights).Add(-3 * time.Hour) // 11:00 on the last day
+		if out.After(now) {
+			out = now.Add(-time.Minute)
+		}
+		var guestID, roomID, stayID string
+		must(pool.QueryRow(ctx, `INSERT INTO guests (property_id, name, phone, address, whatsapp_consent_at) VALUES ($1,$2,$3,$4,now()) RETURNING id`,
+			propID, d.guest, d.phone, d.address).Scan(&guestID))
+		must(pool.QueryRow(ctx, `SELECT id FROM rooms WHERE property_id = $1 AND number = $2`, propID, d.room).Scan(&roomID))
+		must(pool.QueryRow(ctx, `
+			INSERT INTO stays (property_id, room_id, guest_id, status, adults, nightly_rate, check_in_at, expected_check_out_at,
+				checked_out_at, nights, food_plan, bill_to_name, bill_to_gstin, bill_to_address, bill_to_state)
+			VALUES ($1,$2,$3,'checked_out',2,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+			propID, roomID, guestID, d.rate, in, out, d.nights, d.foodPlan, d.billName, d.billGSTIN, d.billAddress, d.billState).Scan(&stayID))
+
+		roomBP := 500
+		if d.rate > 7500_00 {
+			roomBP = 1800
+		}
+		total := stay.MakeLine("room", d.nights, d.rate, roomBP).Total
+		for _, c := range d.charges {
+			_, err := pool.Exec(ctx, `INSERT INTO stay_charges (stay_id, description, quantity, unit_price, gst_rate, charged_on) VALUES ($1,$2,$3,$4,5,$5)`,
+				stayID, c.desc, c.qty, c.price, in.Format("2006-01-02"))
+			must(err)
+			total += stay.MakeLine(c.desc, c.qty, c.price, 500).Total
+		}
+		if paid := total - d.dueRupees*100; paid > 0 {
+			_, err := pool.Exec(ctx, `INSERT INTO stay_payments (stay_id, amount, mode, created_at) VALUES ($1,$2,$3,$4)`, stayID, paid, d.mode, out)
+			must(err)
+		}
+		must(h.IssueInvoiceFor(ctx, propID, stayID))
+	}
+	fmt.Println("Added 3 demo invoices (Priya Nair, Rahul Mehta, Anita Roy). Open Guests → a guest → their stay → Invoice.")
 }
 
 func must(err error) {

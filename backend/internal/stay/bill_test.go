@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guestly/backend/internal/property"
 	"github.com/guestly/backend/internal/secure"
 )
 
@@ -174,5 +175,89 @@ func TestStayRange(t *testing.T) {
 	}
 	if from, to := stayRange(a, a.AddDate(0, 0, 2)); from != "2026-11-09" || to != "2026-11-11" {
 		t.Errorf("two nights = %s..%s", from, to)
+	}
+}
+
+func TestMakeLineSampleBill(t *testing.T) {
+	// ₹2,566.67 room at 2.5% + 2.5% → 64.17 each side, ₹2,695.01 in all.
+	l := MakeLine("Room", 1, 256667, 500)
+	if l.CGST != 6417 || l.SGST != 6417 || l.Total != 269501 {
+		t.Fatalf("line = %+v", l)
+	}
+}
+
+func TestRupeesInWords(t *testing.T) {
+	for in, want := range map[int64]string{
+		0:          "RUPEES ZERO ONLY",
+		269500:     "RUPEES TWO THOUSAND SIX HUNDRED NINETY-FIVE ONLY",
+		269501:     "RUPEES TWO THOUSAND SIX HUNDRED NINETY-FIVE AND ONE PAISE ONLY",
+		10000000:   "RUPEES ONE LAKH ONLY",
+		1234567800: "RUPEES ONE CRORE TWENTY-THREE LAKH FORTY-FIVE THOUSAND SIX HUNDRED SEVENTY-EIGHT ONLY",
+		1900:       "RUPEES NINETEEN ONLY",
+		10050:      "RUPEES ONE HUNDRED AND FIFTY PAISE ONLY",
+	} {
+		if got := rupeesInWords(in); got != want {
+			t.Errorf("rupeesInWords(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFinancialYearAndNumber(t *testing.T) {
+	ist := time.FixedZone("IST", 19800)
+	for in, want := range map[time.Time]string{
+		time.Date(2026, 3, 31, 23, 0, 0, 0, ist):  "25-26",
+		time.Date(2026, 4, 1, 0, 30, 0, 0, ist):   "26-27",
+		time.Date(2026, 11, 13, 10, 0, 0, 0, ist): "26-27",
+		time.Date(2027, 3, 31, 12, 0, 0, 0, ist):  "26-27",
+	} {
+		if got := financialYear(in); got != want {
+			t.Errorf("financialYear(%v) = %s, want %s", in, got, want)
+		}
+	}
+	if n := invoiceNumber("INV", "26-27", 7); n != "INV/26-27/0007" || len(n) > 16 {
+		t.Errorf("number = %s", n)
+	}
+}
+
+func TestSAC(t *testing.T) {
+	for in, want := range map[string]string{"Breakfast": "996331", "Extra bed": "996311", "Laundry": "9997", "Airport pickup": "9964", "Spa": "9963"} {
+		if got := sacFor(in); got != want {
+			t.Errorf("sacFor(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+func TestBuildInvoiceDoc(t *testing.T) {
+	prop := property.Property{Name: "Lakeview", Address: "NH Bypass", City: "Kochi", State: "Kerala", Pincode: "682040", GSTIN: "32AAHCA8583E1ZO"}
+	prop.FrontDesk.GSTRegistered = true
+	prop.FrontDesk.LegalName = "Lakeview Builders Pvt Ltd"
+	room := MakeLine("Room 208 · Deluxe · 1 night", 1, 256667, 500)
+	tea := MakeLine("Tea", 2, 5000, 500)
+	out := time.Date(2026, 10, 28, 10, 46, 0, 0, time.UTC)
+	d := StayDetail{
+		FoodPlan: "EP",
+		BillTo:   BillTo{Name: "Agoda Company Pte Ltd", GSTIN: "32AAHCA8583E1ZO"},
+		Bill:     Summarize([]Line{room, tea}, 0, 1, false),
+	}
+	d.Guest.Name = "Budhan Murali"
+	d.RoomNumber = "208"
+	d.CheckedOutAt = &out
+	doc := buildInvoiceDoc(d, prop)
+	if doc.Title != "TAX INVOICE" || doc.Seller.LegalName != "Lakeview Builders Pvt Ltd" || doc.Seller.StateCode != "32" {
+		t.Errorf("header = %+v", doc)
+	}
+	if doc.BillTo.Name != "Agoda Company Pte Ltd" || doc.GuestName != "Budhan Murali" {
+		t.Errorf("bill-to = %+v", doc.BillTo)
+	}
+	if len(doc.Lines) != 2 || doc.Lines[0].SAC != "996311" || len(doc.TaxSummary) != 1 {
+		t.Fatalf("lines = %+v summary = %+v", doc.Lines, doc.TaxSummary)
+	}
+	if doc.Total != doc.Taxable+doc.CGST+doc.SGST || doc.TaxSummary[0].Taxable != doc.Taxable {
+		t.Errorf("totals don't add up: %+v", doc)
+	}
+	// Not registered: no tax, and it says Bill of Supply.
+	prop.FrontDesk.GSTRegistered = false
+	if got := buildInvoiceDoc(d, prop); got.Title != "BILL OF SUPPLY" || got.Seller.GSTIN != "" {
+		t.Errorf("unregistered = %+v", got.Seller)
 	}
 }

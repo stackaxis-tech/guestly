@@ -37,6 +37,7 @@ make test    # go vet + go test + tsc
 - New schema changes go in a new file, `internal/db/migrations/0000N_name.sql` (goose Up/Down).
 - **Guest ID data**: `internal/secure` uses AES-256-GCM with `DATA_KEY` (64 hex chars, required when `GUESTLY_ENV=production`). ID numbers are encrypted in DB columns, and guest photos and ID images are encrypted objects (`guests/*.enc`) served only through authenticated, logged endpoints (`id_access_log`). **Aadhaar: only the last 4 digits are ever stored.** Losing `DATA_KEY` makes all ID data unreadable, so back it up.
 - Check-in images go through `staged_uploads` (upload first, then reference the IDs in `POST /stays`); unattached uploads are deleted hourly after 24h.
+- **Invoices** (`internal/stay/invoice.go`, table `invoices`): created automatically at checkout (or `POST /stays/{id}/invoice` for older stays). The printed content is frozen as JSON in `invoices.doc`; payments are read live. Numbers are `PREFIX/26-27/0001` from `invoice_counters` (per property, per April–March year, gapless, ≤16 chars). Bill-to company/GSTIN and meal plan live on `stays` and lock once the invoice exists. The guest link `/i/:token` is served by the public `GET /api/v1/public/invoices/{token}`; the token is the only credential.
 - Bills are computed (`stay.computeBill`), not stored: room line = nights × rate with GST by tariff slab (`TaxConfig`), plus `stay_charges`; GST is always split CGST/SGST. While in-house, nights are an estimate; the checkout preview `GET /stays/{id}/checkout` uses the actual nights. Checkout refuses a balance due unless `settleLater`, and records refunds as negative `stay_payments`.
 - WhatsApp templates: defaults are in `internal/stay/messages.go` (`messageKinds`), with per-property overrides in `message_templates`. `Render` drops a line whose known fields are all empty.
 - Room status `occupied` is set **only** by check-in/checkout. Manual housekeeping moves are in `room.CanTransition`, mirrored in `frontend/src/lib/rooms.ts` (`manualNext`).
@@ -68,7 +69,7 @@ make test    # go vet + go test + tsc
 1. ✅ Foundation: auth, properties, room types, rooms and housekeeping, app shell, brand
 1.5 ✅ Guestlog Super Admin: clients, per-property subscriptions, manual payments, logos, invites, read-only after grace
 2. ✅ Guests + secure ID (encrypted), check-in, checkout, payments
-3. GST invoices (numbering per financial year, CGST/SGST vs IGST), PDF, WhatsApp + share link
+3. ✅ GST invoices: numbering per financial year, one standard layout with the client's logo, print + WhatsApp + share link `/i/:token` (see `docs/bill-structure.html`). Still to do: round-off, credit notes, PDF file
 4. Reviews: tokenized `/r/:token`. Every guest sees the Google review button, with an optional private note to the manager. **Never gate Google by rating** (Google policy).
 - Guest WhatsApp messaging is **click-to-send** (prefilled wa.me / WhatsApp Web link, staff press Send) with editable per-property templates. First messages: welcome (phase 2), bill link (phase 3), review request (phase 4). The Business API comes later.
 5. ✅ Reservations calendar · still to do: reports, Form C pending list

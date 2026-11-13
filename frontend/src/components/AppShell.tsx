@@ -15,13 +15,16 @@ const allNav: { to: string; label: string; short?: string; icon: typeof Home; en
   { to: "/rooms", label: "Rooms", icon: BedDouble, housekeeping: true },
   { to: "/guests", label: "Guests", icon: Users, housekeeping: false },
   { to: "/reservations", label: "Reservations", short: "Bookings", icon: CalendarDays, housekeeping: false },
-  { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false, desktopOnly: true },
+  { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false },
   { to: "/settings", label: "Settings", icon: Settings, housekeeping: false },
 ];
 
 function useNav() {
   const { user } = useAuth();
-  return user?.role === "housekeeping" ? allNav.filter((n) => n.housekeeping) : allNav;
+  if (user?.role === "housekeeping") return allNav.filter((n) => n.housekeeping);
+  // Money reports are for owners and managers.
+  if (user?.role === "front_desk") return allNav.filter((n) => n.to !== "/reports");
+  return allNav;
 }
 
 export function AppShell() {
