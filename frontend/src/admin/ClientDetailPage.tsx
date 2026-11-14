@@ -18,12 +18,12 @@ import {
   formatDate,
   planLabel,
   relativeDays,
-  todayISO,
   useClient,
   useInvalidateAdmin,
   type ClientDetail,
   type ClientUser,
 } from "./lib";
+import { RecordPaymentSheet } from "./RecordPayment";
 import { InviteCard, PlanFields, planDefaults, planFieldFromApi, planSchema, toPlanPayload } from "./NewClientPage";
 
 type Tab = "properties" | "users" | "payments" | "details";
@@ -107,7 +107,7 @@ export function ClientDetailPage() {
         </Card>
         <Card className="col-span-2 px-4 py-3 sm:col-span-1">
           <p className="text-xs text-muted">Last payment</p>
-          <p className="font-display text-2xl font-bold">{c.payments[0] ? formatDate(c.payments[0].paidOn) : "—"}</p>
+          <p className="font-display text-2xl font-bold">{formatDate(c.payments.find((x) => !x.voided)?.paidOn)}</p>
         </Card>
       </div>
 
@@ -215,91 +215,6 @@ function PropertyCard({ p, onAction }: { p: Property; onAction: (k: "payment" | 
         <p className="border-t border-line px-5 py-3 text-sm text-danger">No plan set up for this property.</p>
       )}
     </Card>
-  );
-}
-
-/* ---------- Record payment ---------- */
-
-const paymentSchema = z
-  .object({
-    amount: z.string().refine((s) => (toPaise(s) ?? 0) > 0, "Enter the amount received."),
-    mode: z.enum(["upi", "bank", "cash", "other"]),
-    reference: z.string().trim(),
-    paidOn: z.string().min(1, "Enter the payment date."),
-    months: z.coerce.number().int().min(1, "1 to 36 months.").max(36, "1 to 36 months."),
-    notes: z.string(),
-  })
-  .refine((v) => !(v.mode === "upi" || v.mode === "bank") || v.reference.length > 0, {
-    path: ["reference"],
-    message: "Enter the UTR / transaction reference.",
-  });
-
-function RecordPaymentSheet({ property, onClose }: { property: Property; onClose: () => void }) {
-  const invalidate = useInvalidateAdmin();
-  const s = property.subscription!;
-  const form = useForm<z.input<typeof paymentSchema>>({
-    resolver: zodResolver(paymentSchema),
-    mode: "onTouched",
-    defaultValues: { amount: String(s.amount / 100), mode: "upi", reference: "", paidOn: todayISO(), months: s.periodMonths, notes: "" },
-  });
-  const save = useMutation({
-    mutationFn: (v: z.output<typeof paymentSchema>) =>
-      adminApi(`/admin/properties/${property.id}/payments`, { method: "POST", body: { ...v, amount: toPaise(v.amount) } }),
-    onSuccess: () => {
-      invalidate();
-      onClose();
-    },
-    onError: (err) => {
-      if (err instanceof ApiError && err.fields) for (const [k, m] of Object.entries(err.fields)) form.setError(k as never, { message: m });
-    },
-  });
-  const e = form.formState.errors;
-  const mode = form.watch("mode");
-
-  return (
-    <Sheet
-      open
-      onClose={onClose}
-      title="Record payment"
-      description={`${property.name} · ${planLabel(s.plan, s.periodMonths)} ${rupees(s.amount)}`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="pay-form" loading={save.isPending}>Record payment</Button>
-        </>
-      }
-    >
-      <form id="pay-form" noValidate className="flex flex-col gap-4" onSubmit={form.handleSubmit((v) => save.mutate(v as z.output<typeof paymentSchema>))}>
-        {save.error && !(save.error instanceof ApiError && save.error.fields) && <ErrorNote message={save.error.message} />}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Amount received" error={e.amount?.message}>
-            {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" invalid={!!e.amount} {...form.register("amount")} />}
-          </Field>
-          <Field label="Paid on" error={e.paidOn?.message}>
-            {(id, d) => <Input id={id} aria-describedby={d} type="date" max={todayISO()} invalid={!!e.paidOn} {...form.register("paidOn")} />}
-          </Field>
-        </div>
-        <Field label="Method">
-          {(id, d) => (
-            <Select id={id} aria-describedby={d} {...form.register("mode")}>
-              <option value="upi">UPI</option>
-              <option value="bank">Bank transfer (NEFT/IMPS/RTGS)</option>
-              <option value="cash">Cash</option>
-              <option value="other">Other</option>
-            </Select>
-          )}
-        </Field>
-        <Field label="UTR / reference" optional={mode === "cash" || mode === "other"} error={e.reference?.message}>
-          {(id, d) => <Input id={id} aria-describedby={d} className="font-mono" invalid={!!e.reference} {...form.register("reference")} />}
-        </Field>
-        <Field label="Extends plan by (months)" error={e.months?.message} hint="The new period continues from the current end date.">
-          {(id, d) => <Input id={id} aria-describedby={d} type="number" inputMode="numeric" invalid={!!e.months} {...form.register("months")} />}
-        </Field>
-        <Field label="Notes" optional>
-          {(id, d) => <Textarea id={id} aria-describedby={d} rows={2} {...form.register("notes")} />}
-        </Field>
-      </form>
-    </Sheet>
   );
 }
 
@@ -624,7 +539,7 @@ function UsersList({ client }: { client: ClientDetail }) {
           ))}
         </ul>
       </Card>
-      <p className="text-sm text-muted">The owner can add their own staff from their Guestlog settings (coming with check-in).</p>
+      <p className="text-sm text-muted">The owner can add their own staff from their Gustlog settings (coming with check-in).</p>
     </div>
   );
 }

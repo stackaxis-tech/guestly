@@ -78,8 +78,8 @@ func clientState(orgStatus string, subs []billing.Subscription, today time.Time)
 func (h *Handler) loadClients(ctx context.Context) ([]ClientRow, error) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT o.id, o.name, o.contact_name, o.contact_phone, o.contact_email, o.status, o.created_at,
-			(SELECT max(paid_on) FROM client_payments cp WHERE cp.organization_id = o.id),
-			(SELECT coalesce(sum(amount), 0) FROM client_payments cp WHERE cp.organization_id = o.id),
+			(SELECT max(paid_on) FROM client_payments cp WHERE cp.organization_id = o.id AND cp.voided_at IS NULL),
+			(SELECT coalesce(sum(amount), 0) FROM client_payments cp WHERE cp.organization_id = o.id AND cp.voided_at IS NULL),
 			coalesce(json_agg(json_build_object(
 				'endsOn', s.ends_on, 'graceDays', s.grace_days, 'isTrial', s.is_trial, 'logoKey', p.logo_key
 			) ORDER BY p.created_at) FILTER (WHERE p.id IS NOT NULL), '[]')
@@ -211,7 +211,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) error {
 	fyStart := time.Date(fyStartYear, time.April, 1, 0, 0, 0, 0, time.UTC)
 	if err := h.DB.QueryRow(ctx, `
 		SELECT coalesce(sum(amount) FILTER (WHERE paid_on >= $1), 0), coalesce(sum(amount) FILTER (WHERE paid_on >= $2), 0)
-		FROM client_payments`, monthStart, fyStart).Scan(&d.RevenueThisMonth, &d.RevenueThisFY); err != nil {
+		FROM client_payments WHERE voided_at IS NULL`, monthStart, fyStart).Scan(&d.RevenueThisMonth, &d.RevenueThisFY); err != nil {
 		return err
 	}
 
@@ -387,7 +387,7 @@ func (h *Handler) CreateClient(w http.ResponseWriter, r *http.Request) error {
 	err = tx.QueryRow(ctx, `INSERT INTO users (organization_id, name, email, phone, role) VALUES ($1,$2,$3,$4,'owner') RETURNING id`,
 		resp.ClientID, req.Owner.Name, req.Owner.Email, req.Owner.Phone).Scan(&ownerID)
 	if isUnique(err) {
-		return httpx.Invalid(map[string]string{"owner.email": "This email already has a Guestlog account."})
+		return httpx.Invalid(map[string]string{"owner.email": "This email already has a Gustlog account."})
 	}
 	if err != nil {
 		return err

@@ -57,6 +57,9 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 		// A guest's invoice link. No login: the long random token is the credential.
 		r.Method("GET", "/public/invoices/{token}", h(stayH.PublicInvoice))
 
+		// A client's subscription receipt link. Same idea: the token is the credential.
+		r.Method("GET", "/public/receipts/{token}", h(adminH.PublicReceipt))
+
 		// ---- Hotel staff ----
 		r.Route("/auth", func(r chi.Router) {
 			r.Method("POST", "/login", h(authH.Login))
@@ -136,7 +139,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 			})
 		})
 
-		// ---- Guestlog platform admin ----
+		// ---- Gustlog platform admin ----
 		r.Route("/admin", func(r chi.Router) {
 			r.Route("/auth", func(r chi.Router) {
 				r.Method("POST", "/login", h(adminH.Login))
@@ -159,6 +162,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 				r.Method("PUT", "/properties/{propertyID}/subscription", h(adminH.UpdateSubscription))
 				r.Method("POST", "/properties/{propertyID}/payments", h(adminH.RecordPayment))
 				r.Method("GET", "/payments", h(adminH.ListPayments))
+				r.Method("POST", "/payments/{paymentID}/void", h(adminH.VoidPayment))
 				r.Method("GET", "/audit", h(adminH.AuditLog))
 			})
 		})

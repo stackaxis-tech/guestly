@@ -20,6 +20,7 @@ import { CheckInPage } from "./pages/CheckInPage";
 import { GuestDetailPage, GuestsPage } from "./pages/GuestsPage";
 import { StayPage } from "./pages/StayPage";
 import { InvoicePage, PublicInvoicePage } from "./pages/InvoicePage";
+import { PublicReceiptPage } from "./pages/ReceiptPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { TodayPage } from "./pages/TodayPage";
 
@@ -34,7 +35,7 @@ const queryClient = new QueryClient({
 
 function Splash() {
   return (
-    <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Loading Guestlog">
+    <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Loading Gustlog">
       <LogoMark size={44} className="animate-pulse" />
     </div>
   );
@@ -78,7 +79,7 @@ function HotelApp() {
   );
 }
 
-/* ---------- Guestlog admin console ---------- */
+/* ---------- Gustlog admin console ---------- */
 
 function AdminApp() {
   const { status } = useAdminAuth();
@@ -101,11 +102,12 @@ function AdminApp() {
 
 function Root() {
   const { pathname } = useLocation();
-  // A guest's invoice link works without signing in.
-  if (pathname.startsWith("/i/")) {
+  // A guest's invoice link (/i/) and a client's payment receipt link (/p/) work without signing in.
+  if (pathname.startsWith("/i/") || pathname.startsWith("/p/")) {
     return (
       <Routes>
         <Route path="/i/:token" element={<PublicInvoicePage />} />
+        <Route path="/p/:token" element={<PublicReceiptPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );

@@ -49,7 +49,7 @@ function InviteForm() {
       <p className="text-sm font-semibold text-accent-700">{inv.organization}</p>
       <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Welcome, {inv.name.split(" ")[0]}</h1>
       <p className="mt-2 text-[15px] text-muted">
-        Choose a password for <span className="font-medium text-ink">{inv.email}</span>. You'll use it to sign in to Guestlog.
+        Choose a password for <span className="font-medium text-ink">{inv.email}</span>. You'll use it to sign in to Gustlog.
       </p>
       <form
         noValidate

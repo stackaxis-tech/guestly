@@ -20,10 +20,10 @@ const refreshCookie = "guestly_refresh"
 // DummyHash is compared against when a login can't succeed, to keep timing uniform.
 var DummyHash, _ = bcrypt.GenerateFromPassword([]byte("not-a-real-password"), bcrypt.DefaultCost)
 
-var errSuspended = httpx.Forbidden("This account is paused. Please contact Guestlog support.")
+var errSuspended = httpx.Forbidden("This account is paused. Please contact Gustlog support.")
 
 // Handler serves hotel-staff authentication. Hotels can't self-register:
-// accounts are created by a Guestlog admin and activated through an invite.
+// accounts are created by a Gustlog admin and activated through an invite.
 type Handler struct {
 	DB            *pgxpool.Pool
 	Tokens        *Tokens
@@ -46,7 +46,7 @@ type session struct {
 	RefreshToken string `json:"refreshToken,omitempty"`
 }
 
-// isMobile reports whether the request comes from the Guestlog Android/iOS app.
+// isMobile reports whether the request comes from the Gustlog Android/iOS app.
 func isMobile(r *http.Request) bool {
 	return r.Header.Get("X-Client") == "mobile"
 }
@@ -172,7 +172,7 @@ const inviteLookup = `
 	FROM invites i JOIN users u ON u.id = i.user_id JOIN organizations o ON o.id = u.organization_id
 	WHERE i.token_hash = $1 AND i.used_at IS NULL AND i.expires_at > now() AND o.status = 'active'`
 
-const inviteGone = "This invite link has expired or was already used. Ask Guestlog for a new one."
+const inviteGone = "This invite link has expired or was already used. Ask Gustlog for a new one."
 
 // GetInvite lets the set-password page greet the invited person.
 func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) error {

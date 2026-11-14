@@ -215,7 +215,7 @@ function UserMenu() {
   );
 }
 
-/** Warns hotel staff about their Guestlog plan: trial ending, grace period, or read-only. */
+/** Warns hotel staff about their Gustlog plan: trial ending, grace period, or read-only. */
 function BillingBanner() {
   const { current } = useProperty();
   const b = current?.billing;
@@ -226,16 +226,16 @@ function BillingBanner() {
   let text = "";
   if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
-    text = "Your Guestlog plan has expired, so this property is read-only. Contact Guestlog to renew and continue checking guests in.";
+    text = "Your Gustlog plan has expired, so this property is read-only. Contact Gustlog to renew and continue checking guests in.";
   } else if (b.state === "grace") {
     tone = "border-accent-300 bg-accent-50 text-accent-700";
-    text = `Your Guestlog plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
+    text = `Your Gustlog plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
   } else if (b.state === "trial" && b.daysLeft <= 7) {
     tone = "border-brand-200 bg-brand-50 text-brand-800";
     text = b.daysLeft === 0 ? "Your free trial ends today." : `Your free trial ends in ${days(b.daysLeft)}.`;
   } else if (b.state === "active" && b.daysLeft <= 7) {
     tone = "border-brand-200 bg-brand-50 text-brand-800";
-    text = b.daysLeft === 0 ? "Your Guestlog plan renews today." : `Your Guestlog plan is due for renewal in ${days(b.daysLeft)}.`;
+    text = b.daysLeft === 0 ? "Your Gustlog plan renews today." : `Your Gustlog plan is due for renewal in ${days(b.daysLeft)}.`;
   } else {
     return null;
   }

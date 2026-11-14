@@ -26,7 +26,7 @@ export function whatsappURL(phone: string, text: string, openIn: "app" | "web"):
 
 /**
  * Preview → (edit) → open WhatsApp with the message typed → ask "Did it send?" → log it.
- * Guestlog can't see inside WhatsApp, so the confirmation step keeps the record honest.
+ * Gustlog can't see inside WhatsApp, so the confirmation step keeps the record honest.
  */
 /** WhatsApp Web doesn't work on phones, so the mobile apps always open WhatsApp itself. */
 const target = (openIn: "app" | "web") => (isNative ? "app" : openIn);

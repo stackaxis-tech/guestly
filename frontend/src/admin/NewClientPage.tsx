@@ -332,7 +332,7 @@ export function NewClientPage() {
         <div className="mb-6 flex size-12 items-center justify-center rounded-full bg-ready-bg text-ready">
           <Check className="size-6" aria-hidden />
         </div>
-        <h1 className="font-display text-3xl font-bold tracking-tight">{form.getValues("client.name")} is on Guestlog</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{form.getValues("client.name")} is on Gustlog</h1>
         <p className="mt-2 text-muted">Send the owner their invite so they can set a password and sign in.</p>
         {created.logoError && <div className="mt-4"><ErrorNote message={`Client created, but the logo didn't upload: ${created.logoError} You can add it from the client page.`} /></div>}
         <div className="mt-6">
@@ -365,9 +365,9 @@ export function NewClientPage() {
       <Link to="/admin/clients" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
         <ArrowLeft className="size-4" aria-hidden /> Clients
       </Link>
-      <PageHeader eyebrow="Guestlog console" title="New client" description="Set up the business, their first hotel, the owner's login, and their plan." />
+      <PageHeader eyebrow="Gustlog console" title="New client" description="Set up the business, their first hotel, the owner's login, and their plan." />
       <form noValidate onSubmit={form.handleSubmit((v) => create.mutate(v as z.output<typeof schema>))} className="flex flex-col gap-5">
-        <Section step={1} title="Business" body="Who Guestlog bills. Shown on their payment receipts.">
+        <Section step={1} title="Business" body="Who Gustlog bills. Shown on their payment receipts.">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Business name" error={e.client?.name?.message} className="sm:col-span-2">
               {(id, d) => <Input id={id} aria-describedby={d} placeholder="Lakeview Stays Pvt Ltd" invalid={!!e.client?.name} {...reg("client.name")} />}
@@ -384,7 +384,7 @@ export function NewClientPage() {
             <Field label="Billing GSTIN" optional error={e.client?.billingGstin?.message}>
               {(id, d) => <Input id={id} aria-describedby={d} invalid={!!e.client?.billingGstin} {...reg("client.billingGstin")} />}
             </Field>
-            <Field label="Internal notes" optional className="sm:col-span-2" hint="Only visible to Guestlog admins.">
+            <Field label="Internal notes" optional className="sm:col-span-2" hint="Only visible to Gustlog admins.">
               {(id, d) => <Textarea id={id} aria-describedby={d} rows={2} {...reg("client.notes")} />}
             </Field>
           </div>

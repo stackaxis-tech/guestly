@@ -290,7 +290,7 @@ function PlanCard() {
   const [text, cls] = label[b.state];
   return (
     <Card>
-      <SectionHeader title="Your Guestlog plan" body="Billed per property. To renew or change your plan, contact Guestlog." />
+      <SectionHeader title="Your Gustlog plan" body="Billed per property. To renew or change your plan, contact Gustlog." />
       <div className="flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
         <div>
           <p className="text-xs text-muted">Plan</p>
@@ -332,7 +332,7 @@ function LogoCard({ readOnly }: { readOnly: boolean }) {
 
   return (
     <Card>
-      <SectionHeader title="Logo" body="Shown in your Guestlog app, on invoices, and on the guest review page." />
+      <SectionHeader title="Logo" body="Shown in your Gustlog app, on invoices, and on the guest review page." />
       <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5">
         {readOnly ? (
           <p className="text-sm text-muted">Only owners and managers can change the logo.</p>

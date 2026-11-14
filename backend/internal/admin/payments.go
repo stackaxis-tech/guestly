@@ -34,6 +34,13 @@ type Payment struct {
 	Notes        string    `json:"notes"`
 	RecordedBy   string    `json:"recordedBy"`
 	CreatedAt    time.Time `json:"createdAt"`
+	// A voided payment keeps its row and receipt number; it no longer counts as money received.
+	Voided     bool       `json:"voided"`
+	VoidedAt   *time.Time `json:"voidedAt"`
+	VoidReason string     `json:"voidReason"`
+	// CanVoid is true only for the latest payment of a property that is not already void.
+	CanVoid    bool   `json:"canVoid"`
+	ReceiptURL string `json:"receiptUrl"`
 }
 
 // paymentDetails is what an admin enters when recording money received from a client.
@@ -96,7 +103,7 @@ func (h *Handler) recordPayment(ctx context.Context, tx pgx.Tx, orgID, propertyI
 
 	if in.Reference != "" {
 		var dup bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM client_payments WHERE mode = $1 AND lower(reference) = lower($2))`,
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM client_payments WHERE mode = $1 AND lower(reference) = lower($2) AND voided_at IS NULL)`,
 			in.Mode, in.Reference).Scan(&dup); err != nil {
 			return nil, err
 		}
@@ -120,16 +127,19 @@ func (h *Handler) recordPayment(ctx context.Context, tx pgx.Tx, orgID, propertyI
 		return nil, err
 	}
 
+	var token string
 	p := Payment{ClientID: orgID, PropertyID: propertyID, Amount: in.Amount, Mode: in.Mode, Reference: in.Reference,
 		PaidOn: in.paidOn, ReceiptNo: billing.ReceiptNo(fy, n), PeriodFrom: from, PeriodTo: to, Notes: in.Notes}
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO client_payments (organization_id, property_id, amount, mode, reference, paid_on, receipt_no,
-			period_from, period_to, notes, recorded_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, created_at`,
+			period_from, period_to, notes, recorded_by, prev_ends_on, prev_is_trial)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, created_at, public_token`,
 		orgID, propertyID, in.Amount, in.Mode, in.Reference, in.paidOn, p.ReceiptNo, from, to, in.Notes,
-		auth.FromContext(ctx).UserID).Scan(&p.ID, &p.CreatedAt); err != nil {
+		auth.FromContext(ctx).UserID, sub.EndsOn, sub.IsTrial).Scan(&p.ID, &p.CreatedAt, &token); err != nil {
 		return nil, err
 	}
+	p.CanVoid = true
+	p.ReceiptURL = h.receiptURL(token)
 	if _, err := tx.Exec(ctx, `UPDATE subscriptions SET ends_on = $2, is_trial = false, updated_at = now() WHERE id = $1`,
 		sub.ID, to); err != nil {
 		return nil, err
@@ -179,7 +189,12 @@ func (h *Handler) RecordPayment(w http.ResponseWriter, r *http.Request) error {
 func (h *Handler) queryPayments(ctx context.Context, clientID string, limit int) ([]Payment, error) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT cp.id, o.id, o.name, p.id, p.name, cp.amount, cp.mode, cp.reference, cp.paid_on, cp.receipt_no,
-			cp.period_from, cp.period_to, cp.notes, coalesce(a.name, ''), cp.created_at
+			cp.period_from, cp.period_to, cp.notes, coalesce(a.name, ''), cp.created_at,
+			cp.voided_at, cp.void_reason, cp.public_token,
+			(cp.voided_at IS NULL AND NOT EXISTS (
+				SELECT 1 FROM client_payments n
+				WHERE n.property_id = cp.property_id AND n.voided_at IS NULL AND n.id <> cp.id
+					AND (n.period_to, n.created_at) > (cp.period_to, cp.created_at)))
 		FROM client_payments cp
 		JOIN organizations o ON o.id = cp.organization_id
 		JOIN properties p ON p.id = cp.property_id
@@ -192,8 +207,12 @@ func (h *Handler) queryPayments(ctx context.Context, clientID string, limit int)
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Payment, error) {
 		var p Payment
+		var token string
 		err := row.Scan(&p.ID, &p.ClientID, &p.ClientName, &p.PropertyID, &p.PropertyName, &p.Amount, &p.Mode, &p.Reference,
-			&p.PaidOn, &p.ReceiptNo, &p.PeriodFrom, &p.PeriodTo, &p.Notes, &p.RecordedBy, &p.CreatedAt)
+			&p.PaidOn, &p.ReceiptNo, &p.PeriodFrom, &p.PeriodTo, &p.Notes, &p.RecordedBy, &p.CreatedAt,
+			&p.VoidedAt, &p.VoidReason, &token, &p.CanVoid)
+		p.Voided = p.VoidedAt != nil
+		p.ReceiptURL = h.receiptURL(token)
 		return p, err
 	})
 }
@@ -261,6 +280,104 @@ func (h *Handler) UpdateSubscription(w http.ResponseWriter, r *http.Request) err
 	}
 	h.audit(r.Context(), "subscription.updated", "property", id, map[string]any{
 		"plan": in.Plan, "amount": in.Amount, "endsOn": in.EndsOn, "graceDays": in.GraceDays, "reason": in.Reason,
+	})
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// VoidPayment cancels a payment recorded by mistake. Only the latest payment of a property can be voided, so the
+// plan's end date can go back to exactly what it was before. The receipt number is kept (numbers stay gapless);
+// the row is marked void, stops counting as revenue, and its receipt link shows "Void".
+func (h *Handler) VoidPayment(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+	in.Reason = strings.TrimSpace(in.Reason)
+	if in.Reason == "" {
+		return httpx.Invalid(map[string]string{"reason": "Say why this payment is being voided."})
+	}
+	if len(in.Reason) > 300 {
+		return httpx.Invalid(map[string]string{"reason": "Keep the reason under 300 characters."})
+	}
+
+	ctx := r.Context()
+	id := chi.URLParam(r, "paymentID")
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var (
+		propertyID, receipt  string
+		amount               int64
+		periodFrom, periodTo time.Time
+		createdAt            time.Time
+		prevEnds             *time.Time
+		prevTrial            *bool
+		alreadyVoid          bool
+	)
+	err = tx.QueryRow(ctx, `
+		SELECT property_id::text, receipt_no, amount, period_from, period_to, created_at, prev_ends_on, prev_is_trial,
+			voided_at IS NOT NULL
+		FROM client_payments WHERE id::text = $1`, id).
+		Scan(&propertyID, &receipt, &amount, &periodFrom, &periodTo, &createdAt, &prevEnds, &prevTrial, &alreadyVoid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return httpx.NotFound("Payment not found.")
+	}
+	if err != nil {
+		return err
+	}
+	if alreadyVoid {
+		return httpx.Conflict("This payment is already void.")
+	}
+
+	// Lock the plan, then make sure nothing newer sits on top of this payment.
+	var subID string
+	if err := tx.QueryRow(ctx, `SELECT id::text FROM subscriptions WHERE property_id::text = $1 FOR UPDATE`, propertyID).Scan(&subID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return httpx.Conflict("This property has no plan.")
+		}
+		return err
+	}
+	var newer bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM client_payments
+			WHERE property_id::text = $1 AND voided_at IS NULL AND id::text <> $2
+				AND (period_to, created_at) > ($3::date, $4::timestamptz))`,
+		propertyID, id, periodTo, createdAt).Scan(&newer); err != nil {
+		return err
+	}
+	if newer {
+		return httpx.Conflict("A newer payment exists for this property. Void that one first.")
+	}
+
+	// Put the plan back as it was before this payment.
+	endsOn, wasTrial := periodFrom.AddDate(0, 0, -1), false
+	if prevEnds != nil {
+		endsOn = *prevEnds
+	}
+	if prevTrial != nil {
+		wasTrial = *prevTrial
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE subscriptions SET ends_on = greatest($2::date, starts_on), is_trial = $3, updated_at = now()
+		WHERE id::text = $1`, subID, endsOn, wasTrial); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE client_payments SET voided_at = now(), void_reason = $2, voided_by = $3 WHERE id::text = $1`,
+		id, in.Reason, auth.FromContext(ctx).UserID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	h.audit(ctx, "payment.voided", "property", propertyID, map[string]any{
+		"amount": amount, "receipt": receipt, "reason": in.Reason, "endsOn": endsOn.Format("2006-01-02"),
 	})
 	w.WriteHeader(http.StatusNoContent)
 	return nil

@@ -1,5 +1,5 @@
 /**
- * Guestlog logo.
+ * Gustlog logo.
  *
  * The mark is an arched doorway whose threshold closes the bowl of a lowercase
  * "g" and whose right jamb drops into the descender. The red dot inside
@@ -49,7 +49,7 @@ export function Logo({ size = 32, className, tone = "brand" }: LogoProps) {
         )}
         style={{ fontSize: size * 0.7 }}
       >
-        Guestlog<span className="text-brand-700">.</span>
+        Gustlog<span className="text-brand-700">.</span>
       </span>
     </span>
   );

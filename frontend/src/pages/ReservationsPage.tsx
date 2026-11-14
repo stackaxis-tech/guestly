@@ -490,7 +490,7 @@ export function BookingSheet({ id, onClose, onEdit }: { id: string; onClose: () 
         <p className="text-sm text-ink-soft">Room {r.roomNumber} becomes free for these dates.</p>
         {r.advanceAmount > 0 && (
           <p className="mt-3 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
-            {rupees(r.advanceAmount)} advance was received. If you're returning it, refund the guest separately; Guestlog doesn't record that refund.
+            {rupees(r.advanceAmount)} advance was received. If you're returning it, refund the guest separately; Gustlog doesn't record that refund.
           </p>
         )}
         {cancelling && (

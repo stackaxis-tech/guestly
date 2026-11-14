@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "tech.stackaxis.guestlog",
-  appName: "Guestlog",
+  appName: "Gustlog",
   webDir: "dist",
   server: {
     androidScheme: "https",

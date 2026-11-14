@@ -128,7 +128,7 @@ export function AdminLogin() {
           <Logo size={28} />
           <AdminBadge />
         </div>
-        <h1 className="mt-6 font-display text-2xl font-bold tracking-tight">Guestlog console</h1>
+        <h1 className="mt-6 font-display text-2xl font-bold tracking-tight">Gustlog console</h1>
         <p className="mt-1 text-sm text-muted">Manage hotel clients, plans, and payments.</p>
         <form
           noValidate

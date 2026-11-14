@@ -34,10 +34,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Guestlog platform admin (super admin console at /admin).
+	// Gustlog platform admin (super admin console at /admin).
 	adminHash, _ := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
 	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (name, email, password_hash)
-		SELECT 'Guestlog Admin', $1, $2 WHERE NOT EXISTS (SELECT 1 FROM platform_admins WHERE email = $1)`,
+		SELECT 'Gustlog Admin', $1, $2 WHERE NOT EXISTS (SELECT 1 FROM platform_admins WHERE email = $1)`,
 		adminEmail, string(adminHash)); err != nil {
 		log.Fatal(err)
 	}

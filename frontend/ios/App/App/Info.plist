@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Guestlog</string>
+	<string>Gustlog</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -30,11 +30,11 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Guestlog uses the camera to take guest photos and ID photos at check-in.</string>
+	<string>Gustlog uses the camera to take guest photos and ID photos at check-in.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Guestlog needs this permission for the camera to work. Photos are not saved to your library.</string>
+	<string>Gustlog needs this permission for the camera to work. Photos are not saved to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Guestlog lets you choose a guest photo or ID photo from your library.</string>
+	<string>Gustlog lets you choose a guest photo or ID photo from your library.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

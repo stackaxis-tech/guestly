@@ -1,5 +1,5 @@
 /**
- * API clients. Hotel staff and Guestlog admins have separate sessions: each
+ * API clients. Hotel staff and Gustlog admins have separate sessions: each
  * client keeps its access token in memory and refreshes it via its own
  * httpOnly cookie. On a 401 we try one refresh, then retry the request.
  */
@@ -88,7 +88,7 @@ export function createClient<S extends { accessToken: string; refreshToken?: str
         signal: opts.signal,
       });
     } catch {
-      throw new ApiError(0, "network", "Can't reach Guestlog. Check your internet connection and try again.");
+      throw new ApiError(0, "network", "Can't reach Gustlog. Check your internet connection and try again.");
     }
 
     if (res.status === 401 && !retried && !path.startsWith(authPrefix)) {

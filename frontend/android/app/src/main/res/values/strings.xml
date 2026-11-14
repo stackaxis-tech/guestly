@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Guestlog</string>
-    <string name="title_activity_main">Guestlog</string>
+    <string name="app_name">Gustlog</string>
+    <string name="title_activity_main">Gustlog</string>
     <string name="package_name">tech.stackaxis.guestlog</string>
     <string name="custom_url_scheme">tech.stackaxis.guestlog</string>
 </resources>

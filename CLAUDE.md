@@ -1,9 +1,9 @@
-# Guestlog
+# Gustlog
 
 Front-desk / property management app for small **Indian** hotels, guesthouses, and homestays.
 Full plan: `~/.claude/plans/dont-use-artificats-i-woolly-wilkinson.md`.
 
-**Naming:** the product is **Guestlog** (renamed from Guestly). Use Guestlog in anything people read. Internal identifiers deliberately keep `guestly` (Go module path, Postgres user/db, cookies, JWT issuer, `GUESTLY_*` env vars, `~/guestly` on the VM, repo folder, and existing `@guestly.dev` logins); renaming them would risk live data or sign everyone out.
+**Naming:** the product is **Gustlog** (no "e"; domain gustlog.com; earlier names Guestly, then Guestlog). Use Gustlog in anything people read. Internal identifiers deliberately keep `guestly` (Go module path, Postgres user/db, cookies, JWT issuer, `GUESTLY_*` env vars, `~/guestly` on the VM, repo folder, and existing `@guestly.dev` logins); renaming them would risk live data or sign everyone out.
 
 ## Stack
 - `backend/`: Go, chi router, pgx (hand-written SQL, no ORM), goose migrations embedded and run on API start, JWT auth.
@@ -29,8 +29,9 @@ make test    # go vet + go test + tsc
 - Package per domain under `backend/internal/` (`auth`, `property`, `room`, …). Handlers return `error`, wrapped with `httpx.Handler`.
 - Return `httpx.Invalid(map[field]msg)` for form errors (422), so the frontend shows them inline; other helpers are `NotFound`, `Conflict`, `Forbidden`, etc.
 - Everything property-scoped lives under `/api/v1/properties/{propertyID}/…`. The `property.Access` middleware checks access; read the ID with `property.ID(ctx)`. Always filter queries by `property_id`.
-- **Two auth scopes**: hotel staff (`/api/v1/auth`, `users`) and Guestlog super admins (`/api/v1/admin/auth`, `platform_admins`). The JWT `scope` claim is `hotel` or `platform`, and each middleware rejects the other scope. Hotels can't self-register: an admin creates the client, and the owner sets a password through `/invite/:token`.
+- **Two auth scopes**: hotel staff (`/api/v1/auth`, `users`) and Gustlog super admins (`/api/v1/admin/auth`, `platform_admins`). The JWT `scope` claim is `hotel` or `platform`, and each middleware rejects the other scope. Hotels can't self-register: an admin creates the client, and the owner sets a password through `/invite/:token`.
 - Subscriptions are **per property** (`internal/billing`). The `property.Access` middleware returns 402 `subscription_expired` on writes once the grace period is over, and 403 for suspended clients. Admin actions call `h.audit(...)`.
+- **Subscription payments** (`internal/admin/payments.go`): recording extends the plan and issues a gapless receipt number. A wrong payment is voided with `POST /admin/payments/{id}/void` (reason required, **latest payment of a property only**): the row and receipt number stay, it stops counting as revenue, and the plan's end date and trial flag go back to `prev_ends_on` / `prev_is_trial`. Each payment has a `public_token`; the client's receipt is the public page `/p/:token` (`GET /api/v1/public/receipts/{token}`, `receipt.go`). It is a receipt, not a GST tax invoice. In the admin UI, "Record payment" is on each property card, each Renewals row, and the Payments page (`admin/RecordPayment.tsx`).
 - Files are stored via the `storage.Store` interface (`LocalStore` in `backend/var/uploads` for dev) and served only through HMAC-signed URLs (`storage.Signer`). Logos must be PNG/JPG/WebP ≤ 1 MB; SVG is rejected.
 - Roles: `owner` (all org properties), `manager`, `front_desk`, `housekeeping` (need a `property_members` row). Use `auth.RequireRole`.
 - **Money is `bigint` paise** everywhere. Never use floats.
@@ -67,7 +68,7 @@ make test    # go vet + go test + tsc
 
 ## Build phases
 1. ✅ Foundation: auth, properties, room types, rooms and housekeeping, app shell, brand
-1.5 ✅ Guestlog Super Admin: clients, per-property subscriptions, manual payments, logos, invites, read-only after grace
+1.5 ✅ Gustlog Super Admin: clients, per-property subscriptions, manual payments, logos, invites, read-only after grace
 2. ✅ Guests + secure ID (encrypted), check-in, checkout, payments
 3. ✅ GST invoices: numbering per financial year, one standard layout with the client's logo, print + WhatsApp + share link `/i/:token` (see `docs/bill-structure.html`). Still to do: round-off, credit notes, PDF file
 4. Reviews: tokenized `/r/:token`. Every guest sees the Google review button, with an optional private note to the manager. **Never gate Google by rating** (Google policy).

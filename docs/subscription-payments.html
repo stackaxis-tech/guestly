@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gustlog subscriptions and payments</title>
+<style>
+:root{--ink:#242424;--muted:#6c736c;--line:#e0e3de;--bg:#f6f7f5;--hi:#fff6d6;--red:#b8352f;--green:#3e6b5b;--greenbg:#e8f1ec;--amberbg:#fdf0d5;--amber:#8a5a00;--redbg:#fbe9e7}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;color:var(--ink);background:var(--bg);padding:24px}
+main{max-width:1000px;margin:auto}h1{font-size:22px;margin:0 0 4px}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:34px 0 12px}
+.sub{color:var(--muted);margin:0}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch}
+.step{flex:1;min-width:130px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.step b{display:block;margin-bottom:2px}.step small{color:var(--muted)}
+.arrow{align-self:center;color:var(--muted);font-size:20px}
+.step.hot{background:var(--hi);border-color:#e6d58a}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}
+.cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.cards .card h3{margin:0 0 4px;font-size:15px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cards .card p{margin:0;color:var(--muted);font-size:13px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.ok{background:var(--greenbg);color:var(--green)}.gap{background:var(--redbg);color:var(--red)}.dec{background:var(--amberbg);color:var(--amber)}
+svg{width:100%;height:auto;display:block}
+table.t{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+table.t th,table.t td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+table.t th{background:var(--bg);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+table.t tr:last-child td{border-bottom:0}
+code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
+.pulse{animation:pulse 1.8s ease-in-out infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.dot{animation:travel 9s linear infinite}
+@keyframes travel{0%{transform:translateX(0)}100%{transform:translateX(640px)}}
+.flowline{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}@keyframes dash{to{stroke-dashoffset:-12}}
+@media (prefers-reduced-motion:reduce){.pulse,.dot,.flowline{animation:none}}
+</style></head><body><main>
+
+<h1>Subscriptions and payments</h1>
+<p class="sub">Manual recording already exists. These are the gaps.</p>
+
+<h2>1 · How a payment works today</h2>
+<div class="flow">
+  <div class="step"><b>Client</b><small>hotel business</small></div><div class="arrow">→</div>
+  <div class="step"><b>Property</b><small>has one plan + price</small></div><div class="arrow">→</div>
+  <div class="step hot"><b>Record payment</b><small>UPI · bank · cash · other</small></div><div class="arrow">→</div>
+  <div class="step"><b>Receipt no.</b><small>GST/26-27/0001</small></div><div class="arrow">→</div>
+  <div class="step"><b>Plan extends</b><small>from old end date</small></div>
+</div>
+<p class="sub" style="margin-top:10px">Where to click: <b>Clients → open a client → Properties tab → "Record payment"</b> on the property card. Also in the New client wizard ("Payment already received").</p>
+
+<h2>2 · Subscription life of one property</h2>
+<div class="card">
+<svg viewBox="0 0 700 150" role="img" aria-label="Subscription states: trial, active, grace, read-only">
+  <rect x="10" y="50" width="130" height="34" rx="6" fill="#e8f1ec" stroke="#3e6b5b"/><text x="75" y="72" text-anchor="middle" font-size="13" fill="#3e6b5b">Trial</text>
+  <rect x="150" y="50" width="260" height="34" rx="6" fill="#e8f1ec" stroke="#3e6b5b"/><text x="280" y="72" text-anchor="middle" font-size="13" fill="#3e6b5b">Active (paid)</text>
+  <rect x="420" y="50" width="110" height="34" rx="6" fill="#fdf0d5" stroke="#8a5a00"/><text x="475" y="72" text-anchor="middle" font-size="13" fill="#8a5a00">Grace · 7 days</text>
+  <rect x="540" y="50" width="150" height="34" rx="6" fill="#fbe9e7" stroke="#b8352f"/><text x="615" y="72" text-anchor="middle" font-size="13" fill="#b8352f">Read-only</text>
+  <g class="dot"><circle cx="30" cy="67" r="6" fill="#242424" opacity=".85"/></g>
+  <path class="flowline" d="M475 100 C475 130 280 130 280 100" fill="none" stroke="#b8352f" stroke-width="2"/>
+  <text x="378" y="143" text-anchor="middle" font-size="12" fill="#b8352f">payment → back to Active</text>
+  <text x="280" y="38" text-anchor="middle" font-size="11" fill="#6c736c">hotel banner at 7 days left · admin "expiring" list at 30</text>
+</svg>
+</div>
+<p class="sub" style="margin-top:8px">Pay early or in grace: new period starts after the old end date (no free days). Pay after grace: starts from the payment date.</p>
+
+<h2>3 · What is missing</h2>
+<div class="cards">
+  <div class="card"><h3>Record from Payments / Renewals <span class="tag ok">built</span></h3><p>The Renewals list on the dashboard shows who is due, but you must open each client to record. No button on the row, none on the Payments page.</p></div>
+  <div class="card"><h3>Fix a wrong payment <span class="tag ok">built</span></h3><p>No void or edit. A wrong amount or wrong property keeps the extended plan and the receipt number.</p></div>
+  <div class="card"><h3>Receipt the client can open <span class="tag ok">built</span></h3><p>Only a receipt number is saved. No printable page, no WhatsApp link to send to the hotel.</p></div>
+  <div class="card"><h3>GST on our own bill <span class="tag dec">decide</span></h3><p>Receipt has one amount. No tax split, no GSTIN of ours, no tax invoice for the subscription.</p></div>
+  <div class="card"><h3>Price list <span class="tag dec">decide</span></h3><p>Each property has a free-typed price. No fixed plans, no discounts, no history of price changes.</p></div>
+  <div class="card"><h3>Duplicate protection <span class="tag ok">done</span></h3><p>Same UPI/bank reference cannot be recorded twice. Receipts are numbered per financial year with no gaps.</p></div>
+</div>
+
+<h2>4 · Collection paths, one engine</h2>
+<div class="card">
+<svg viewBox="0 0 700 190" role="img" aria-label="Manual and Razorpay payments both feed one record-payment step">
+  <rect x="10" y="20" width="190" height="52" rx="8" fill="#fff6d6" stroke="#e6d58a"/><text x="105" y="42" text-anchor="middle" font-size="13" font-weight="600">Manual</text><text x="105" y="60" text-anchor="middle" font-size="11" fill="#6c736c">admin types UTR / cash</text>
+  <rect x="10" y="110" width="190" height="52" rx="8" fill="#fff" stroke="#e0e3de" stroke-dasharray="5 4"/><text x="105" y="132" text-anchor="middle" font-size="13" font-weight="600">Razorpay (later)</text><text x="105" y="150" text-anchor="middle" font-size="11" fill="#6c736c">hotel pays a link, webhook</text>
+  <path class="flowline" d="M200 46 L290 90" stroke="#242424" stroke-width="2" fill="none"/>
+  <path class="flowline" d="M200 136 L290 98" stroke="#6c736c" stroke-width="2" fill="none"/>
+  <rect x="290" y="62" width="170" height="64" rx="8" fill="#fff" stroke="#242424"/><text x="375" y="88" text-anchor="middle" font-size="13" font-weight="600">recordPayment</text><text x="375" y="106" text-anchor="middle" font-size="11" fill="#6c736c">one transaction, already built</text>
+  <path class="flowline" d="M460 80 L520 50" stroke="#242424" stroke-width="2" fill="none"/>
+  <path class="flowline" d="M460 108 L520 138" stroke="#242424" stroke-width="2" fill="none"/>
+  <rect x="520" y="22" width="170" height="50" rx="8" fill="#e8f1ec" stroke="#3e6b5b"/><text x="605" y="52" text-anchor="middle" font-size="13">Receipt number</text>
+  <rect x="520" y="114" width="170" height="50" rx="8" fill="#e8f1ec" stroke="#3e6b5b"/><text x="605" y="144" text-anchor="middle" font-size="13">Plan end date moves</text>
+</svg>
+</div>
+<p class="sub" style="margin-top:8px">Razorpay later plugs into the same step. Nothing built now has to be redone.</p>
+
+<h2>5 · Tasks (one feature, one task)</h2>
+<table class="t">
+<tr><th style="width:36px">#</th><th>Task</th><th>Where</th><th style="width:90px">Size</th></tr>
+<tr><td>1</td><td><b>Record payment from Renewals and Payments page.</b> Button on each renewal row and a "Record payment" button on Payments that asks for client and property first. Reuses the existing form.</td><td>Frontend only</td><td><span class="tag ok">Built</span></td></tr>
+<tr><td>2</td><td><b>Void a payment.</b> Marks it void with a reason, keeps the receipt number, moves the plan end date back (only if it is the latest payment). Shows in the activity log.</td><td><code>admin/payments.go</code> + sheet</td><td><span class="tag ok">Built</span></td></tr>
+<tr><td>3</td><td><b>Payment receipt page and share.</b> Printable receipt with Gustlog details, link <code>/p/:token</code>, WhatsApp click-to-send like invoices.</td><td>Backend + public page</td><td><span class="tag ok">Built</span></td></tr>
+<tr><td>4</td><td><b>Fixed plan price list.</b> Monthly and annual prices set once; custom price still allowed per property with a note.</td><td>Migration + admin UI</td><td>Medium</td></tr>
+<tr><td>5</td><td><b>GST tax invoice for the subscription.</b> Only if we charge GST (see decision 1).</td><td>Migration + receipt</td><td>Large</td></tr>
+<tr><td>6</td><td><b>Razorpay checkout.</b> Pay link per renewal, webhook calls <code>recordPayment</code>.</td><td>New package</td><td>Large</td></tr>
+</table>
+
+<h2>6 · Decisions for you</h2>
+<div class="cards">
+  <div class="card"><h3>1 · Do we charge GST? <span class="tag dec">needed for task 5</span></h3><p>If our turnover needs GST registration, the hotel must get a tax invoice, not only a receipt. Ask your CA before building.</p></div>
+  <div class="card"><h3>2 · Fixed prices or custom? <span class="tag dec">task 4</span></h3><p>Same price list for all hotels, or negotiated price per client. Fixed is simpler to explain and report.</p></div>
+  <div class="card"><h3>3 · Void rules <span class="tag dec">task 2</span></h3><p>Allow void only on the latest payment of a property (recommended), or any payment with a manual date fix.</p></div>
+</div>
+
+</main></body></html>

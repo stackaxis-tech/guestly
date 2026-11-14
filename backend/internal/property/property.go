@@ -1,5 +1,5 @@
 // Package property manages hotels/properties, their logos, and per-property
-// access (including read-only mode once the Guestlog subscription lapses).
+// access (including read-only mode once the Gustlog subscription lapses).
 package property
 
 import (
@@ -377,7 +377,7 @@ func ID(ctx context.Context) string {
 }
 
 // Access resolves {propertyID} from the URL, rejects principals who can't access it,
-// and blocks writes once the property's Guestlog subscription is past its grace period.
+// and blocks writes once the property's Gustlog subscription is past its grace period.
 func (h *Handler) Access(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "propertyID")
@@ -401,7 +401,7 @@ func (h *Handler) Access(next http.Handler) http.Handler {
 			return
 		}
 		if orgStatus == "suspended" {
-			httpx.WriteError(w, r, httpx.Forbidden("This account is paused. Please contact Guestlog support."))
+			httpx.WriteError(w, r, httpx.Forbidden("This account is paused. Please contact Gustlog support."))
 			return
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -411,7 +411,7 @@ func (h *Handler) Access(next http.Handler) http.Handler {
 			}
 			if readOnly {
 				httpx.WriteError(w, r, &httpx.Error{Status: http.StatusPaymentRequired, Code: "subscription_expired",
-					Message: "Your Guestlog plan for this property has expired, so it's read-only. Renew to make changes."})
+					Message: "Your Gustlog plan for this property has expired, so it's read-only. Renew to make changes."})
 				return
 			}
 		}

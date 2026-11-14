@@ -91,6 +91,13 @@ export type Payment = {
   notes: string;
   recordedBy: string;
   createdAt: string;
+  /** A voided payment keeps its receipt number but no longer counts as money received. */
+  voided: boolean;
+  voidedAt: string | null;
+  voidReason: string;
+  /** True only for the latest payment of a property that is not already void. */
+  canVoid: boolean;
+  receiptUrl: string;
 };
 
 export type ClientUser = {
@@ -201,7 +208,7 @@ export function relativeDays(days: number): string {
 
 /** WhatsApp share link for an invite (opens WhatsApp with the message prefilled). */
 export function whatsappInviteLink(phone: string, name: string, url: string): string {
-  const text = `Hi ${name}, your Guestlog account is ready. Set your password here: ${url}`;
+  const text = `Hi ${name}, your Gustlog account is ready. Set your password here: ${url}`;
   const digits = phone.replace(/\D/g, "");
   const to = digits.length === 10 ? "91" + digits : digits;
   return `https://wa.me/${to}?text=${encodeURIComponent(text)}`;

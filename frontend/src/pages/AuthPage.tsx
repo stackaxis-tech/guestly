@@ -110,7 +110,7 @@ function LoginForm() {
         </Button>
       </form>
       <p className="mt-6 text-center text-sm text-muted">
-        New hotel? Guestlog sets up your account and sends you an invite link.
+        New hotel? Gustlog sets up your account and sends you an invite link.
       </p>
     </>
   );

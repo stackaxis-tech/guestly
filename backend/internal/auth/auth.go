@@ -33,7 +33,7 @@ type Principal struct {
 	Role   Role
 }
 
-// Token scopes. Hotel tokens and Guestlog platform tokens are never interchangeable.
+// Token scopes. Hotel tokens and Gustlog platform tokens are never interchangeable.
 const (
 	ScopeHotel    = "hotel"
 	ScopePlatform = "platform"
@@ -59,7 +59,7 @@ func (t *Tokens) IssueAccess(p Principal) (string, error) {
 	return t.issue(ScopeHotel, p)
 }
 
-// IssueAdmin issues a platform-scoped token for a Guestlog admin.
+// IssueAdmin issues a platform-scoped token for a Gustlog admin.
 func (t *Tokens) IssueAdmin(adminID string) (string, error) {
 	return t.issue(ScopePlatform, Principal{UserID: adminID})
 }

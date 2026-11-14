@@ -1,10 +1,12 @@
 import clsx from "clsx";
-import { AlertTriangle, Building2, ChevronRight, Plus, Search, Wallet } from "lucide-react";
+import { AlertTriangle, Building2, ChevronRight, Plus, Receipt, Search, Wallet } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { PropertyLogo } from "../components/PropertyLogo";
 import { Button, Card, EmptyState, ErrorNote, Input, PageHeader, Spinner } from "../components/ui";
 import { rupees } from "../lib/format";
+import { PaymentActions } from "./PaymentActions";
+import { RecordPaymentFor, RecordPaymentPicker } from "./RecordPayment";
 import {
   clientStateMeta,
   formatDate,
@@ -41,6 +43,7 @@ function Stat({ label, value, hint, tone, to }: { label: string; value: ReactNod
 
 export function AdminDashboard() {
   const q = useDashboard();
+  const [paying, setPaying] = useState<{ clientId: string; propertyId: string } | null>(null);
   if (q.isLoading) return <Spinner />;
   if (q.error) return <ErrorNote message={q.error.message} onRetry={() => q.refetch()} />;
   const d = q.data!;
@@ -49,7 +52,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <PageHeader eyebrow="Guestlog console"
+      <PageHeader eyebrow="Gustlog console"
         title="Dashboard"
         description={`${d.counts.total} clients · ${d.properties} properties`}
         actions={
@@ -58,6 +61,8 @@ export function AdminDashboard() {
           </Link>
         }
       />
+
+      {paying && <RecordPaymentFor clientId={paying.clientId} propertyId={paying.propertyId} onClose={() => setPaying(null)} />}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Card className="border-ink bg-ink! px-5 py-5 text-white">
@@ -88,8 +93,8 @@ export function AdminDashboard() {
           ) : (
             <ul className="divide-y divide-line">
               {[...attention, ...upcoming].map((r) => (
-                <li key={r.propertyId}>
-                  <Link to={`/admin/clients/${r.clientId}`} className="flex items-center gap-3 px-5 py-3 hover:bg-sand/60">
+                <li key={r.propertyId} className="flex items-center gap-2 pr-4 hover:bg-sand/60">
+                  <Link to={`/admin/clients/${r.clientId}`} className="flex min-w-0 flex-1 items-center gap-3 px-5 py-3">
                     {(r.state === "grace" || r.state === "expired") && <AlertTriangle className="size-4 shrink-0 text-danger" aria-hidden />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{r.propertyName}</span>
@@ -104,6 +109,14 @@ export function AdminDashboard() {
                       <span className="tabular block text-xs text-muted">{rupees(r.amount)}</span>
                     </span>
                   </Link>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<Receipt className="size-4" />}
+                    onClick={() => setPaying({ clientId: r.clientId, propertyId: r.propertyId })}
+                  >
+                    Record payment
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -174,9 +187,9 @@ export function ClientsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Guestlog console"
+      <PageHeader eyebrow="Gustlog console"
         title="Clients"
-        description="Hotels and homestays using Guestlog."
+        description="Hotels and homestays using Gustlog."
         actions={
           <Link to="/admin/clients/new">
             <Button icon={<Plus className="size-4" />}>New client</Button>
@@ -220,7 +233,7 @@ export function ClientsPage() {
           <EmptyState
             icon={<Building2 className="size-6" />}
             title={q.data!.length === 0 ? "No clients yet" : "No clients match"}
-            body={q.data!.length === 0 ? "Create your first hotel client to get them started on Guestlog." : "Try a different search or filter."}
+            body={q.data!.length === 0 ? "Create your first hotel client to get them started on Gustlog." : "Try a different search or filter."}
             action={
               q.data!.length === 0 && (
                 <Link to="/admin/clients/new">
@@ -276,7 +289,7 @@ export function ClientsPage() {
 export function PaymentsTable({ payments, showClient = true }: { payments: Payment[]; showClient?: boolean }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[860px] text-sm">
         <thead>
           <tr className="border-b border-line bg-sand/50 text-left text-xs font-semibold tracking-wide text-muted uppercase">
             <th className="px-5 py-2.5 font-semibold">Paid on</th>
@@ -285,12 +298,13 @@ export function PaymentsTable({ payments, showClient = true }: { payments: Payme
             <th className="px-3 py-2.5 font-semibold">Method</th>
             <th className="px-3 py-2.5 font-semibold">Covers</th>
             <th className="px-3 py-2.5 font-semibold">Receipt</th>
-            <th className="px-5 py-2.5 text-right font-semibold">Amount</th>
+            <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+            <th className="px-5 py-2.5 font-semibold">Receipt actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
           {payments.map((p) => (
-            <tr key={p.id} className="align-top">
+            <tr key={p.id} className={clsx("align-top", p.voided && "bg-sand/40 text-muted")}>
               <td className="px-5 py-3 whitespace-nowrap">{formatDate(p.paidOn)}</td>
               {showClient && (
                 <td className="px-3 py-3">
@@ -307,8 +321,19 @@ export function PaymentsTable({ payments, showClient = true }: { payments: Payme
               <td className="px-3 py-3 whitespace-nowrap text-muted">
                 {formatDate(p.periodFrom)} – {formatDate(p.periodTo)}
               </td>
-              <td className="px-3 py-3 font-mono text-xs whitespace-nowrap">{p.receiptNo}</td>
-              <td className="tabular px-5 py-3 text-right font-semibold">{rupees(p.amount)}</td>
+              <td className="px-3 py-3 font-mono text-xs whitespace-nowrap">
+                {p.receiptNo}
+                {p.voided && (
+                  <span className="mt-1 block max-w-48 font-sans whitespace-normal">
+                    <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[11px] font-semibold text-danger">Void</span>
+                    {p.voidReason && <span className="mt-1 block text-muted">{p.voidReason}</span>}
+                  </span>
+                )}
+              </td>
+              <td className={clsx("tabular px-3 py-3 text-right font-semibold", p.voided && "line-through")}>{rupees(p.amount)}</td>
+              <td className="px-5 py-3">
+                <PaymentActions payment={p} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -319,10 +344,21 @@ export function PaymentsTable({ payments, showClient = true }: { payments: Payme
 
 export function AdminPaymentsPage() {
   const q = usePayments();
-  const total = (q.data ?? []).reduce((s, p) => s + p.amount, 0);
+  const [recording, setRecording] = useState(false);
+  const total = (q.data ?? []).reduce((s, p) => (p.voided ? s : s + p.amount), 0);
   return (
     <>
-      <PageHeader eyebrow="Guestlog console" title="Payments" description="Every subscription payment recorded from clients." />
+      <PageHeader
+        eyebrow="Gustlog console"
+        title="Payments"
+        description="Every subscription payment recorded from clients."
+        actions={
+          <Button icon={<Receipt className="size-4" />} onClick={() => setRecording(true)}>
+            Record payment
+          </Button>
+        }
+      />
+      {recording && <RecordPaymentPicker onClose={() => setRecording(false)} />}
       {q.isLoading ? (
         <Spinner />
       ) : q.error ? (
@@ -332,7 +368,7 @@ export function AdminPaymentsPage() {
           <EmptyState
             icon={<Wallet className="size-6" />}
             title="No payments yet"
-            body="Open a client and use “Record payment” when they pay by UPI, bank transfer, or cash."
+            body="Use “Record payment” when a client pays by UPI, bank transfer, or cash."
           />
         </Card>
       ) : (
@@ -361,6 +397,7 @@ const actionLabel: Record<string, string> = {
   "property.logo_removed": "removed the logo of",
   "subscription.updated": "changed the plan for",
   "payment.recorded": "recorded a payment for",
+  "payment.voided": "voided a payment for",
   "user.invite_resent": "sent a new invite link for",
 };
 
@@ -368,7 +405,7 @@ export function ActivityPage() {
   const q = useAudit();
   return (
     <>
-      <PageHeader eyebrow="Guestlog console" title="Activity" description="Every change made in the Guestlog console." />
+      <PageHeader eyebrow="Gustlog console" title="Activity" description="Every change made in the Gustlog console." />
       {q.isLoading ? (
         <Spinner />
       ) : q.error ? (
@@ -384,7 +421,9 @@ export function ActivityPage() {
                 const extra =
                   e.action === "payment.recorded"
                     ? `${rupees(Number(detail.amount ?? 0))} · ${String(detail.receipt ?? "")}`
-                    : typeof detail.reason === "string" && detail.reason
+                    : e.action === "payment.voided"
+                      ? `${rupees(Number(detail.amount ?? 0))} · ${String(detail.receipt ?? "")} · Reason: ${String(detail.reason ?? "")}`
+                      : typeof detail.reason === "string" && detail.reason
                       ? `Reason: ${detail.reason}`
                       : "";
                 return (
