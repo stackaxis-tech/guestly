@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
 import { z } from "zod";
 import { Logo } from "../components/brand/Logo";
 import { PoweredBy } from "../components/PoweredBy";
@@ -46,6 +47,18 @@ export function BrandPanel() {
         <p className="mt-5 text-[15px] leading-relaxed text-white/70">
           Check-ins, rooms, GST invoices and guest reviews for small hotels and homestays, in one calm place.
         </p>
+
+        {/* Free for 30 days card */}
+        <div className="mt-8 rounded-xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm">
+          <span className="text-xs font-bold tracking-wider text-accent-400 uppercase">Free for 30 days</span>
+          <p className="mt-1 text-sm text-white/80">No card needed. Subscribe only when you're ready.</p>
+          <Link
+            to="/register"
+            className="mt-3 inline-flex items-center justify-center rounded-lg bg-accent-400 px-4 py-2 text-xs font-semibold text-ink transition hover:bg-accent-300"
+          >
+            Start free trial
+          </Link>
+        </div>
       </div>
       {/* Decorative doorway echoing the logo mark */}
       <svg
@@ -105,12 +118,33 @@ function LoginForm() {
             <Input id={id} aria-describedby={d} type="password" autoComplete="current-password" invalid={!!formState.errors.password} {...register("password")} />
           )}
         </Field>
+        <div className="-mt-2 text-right">
+          <span className="text-xs text-muted hover:text-ink cursor-pointer" title="Contact your Gustlog administrator to reset your password">
+            Forgot password?
+          </span>
+        </div>
         <Button type="submit" loading={formState.isSubmitting} className="mt-2 w-full">
           Sign in
         </Button>
       </form>
+
+      {/* Mobile-only 30-day card */}
+      <div className="mt-8 rounded-xl border border-line bg-paper p-4 lg:hidden">
+        <span className="text-xs font-bold tracking-wider text-accent-700 uppercase">Free for 30 days</span>
+        <p className="mt-1 text-sm text-muted">No card needed. Subscribe only when you're ready.</p>
+        <Link
+          to="/register"
+          className="mt-3 inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2 text-xs font-semibold text-white transition hover:bg-ink/90"
+        >
+          Start free trial
+        </Link>
+      </div>
+
       <p className="mt-6 text-center text-sm text-muted">
-        New hotel? Gustlog sets up your account and sends you an invite link.
+        New hotel?{" "}
+        <Link to="/register" className="font-semibold text-brand-700 hover:text-brand-800">
+          Start your free trial
+        </Link>
       </p>
     </>
   );

@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Logo, LogoMark } from "./brand/Logo";
 import { Button, ErrorNote, Spinner } from "./ui";
@@ -224,26 +224,49 @@ function BillingBanner() {
 
   let tone = "";
   let text = "";
+  let showSubscribe = false;
+
   if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
-    text = "Your Gustlog plan has expired, so this property is read-only. Contact Gustlog to renew and continue checking guests in.";
+    text = "Your free trial / Gustlog plan has expired. Subscribe to continue checking guests in.";
+    showSubscribe = true;
   } else if (b.state === "grace") {
     tone = "border-accent-300 bg-accent-50 text-accent-700";
     text = `Your Gustlog plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
-  } else if (b.state === "trial" && b.daysLeft <= 7) {
-    tone = "border-brand-200 bg-brand-50 text-brand-800";
-    text = b.daysLeft === 0 ? "Your free trial ends today." : `Your free trial ends in ${days(b.daysLeft)}.`;
+    showSubscribe = true;
+  } else if (b.state === "trial") {
+    if (b.daysLeft <= 3) {
+      tone = "border-danger/30 bg-danger-bg text-danger";
+    } else if (b.daysLeft <= 7) {
+      tone = "border-accent-300 bg-accent-50 text-accent-700";
+    } else {
+      tone = "border-brand-200 bg-brand-50 text-brand-800";
+    }
+    text = b.daysLeft === 0 ? "Free trial: ends today." : `Free trial: ${days(b.daysLeft)} left.`;
+    showSubscribe = true;
   } else if (b.state === "active" && b.daysLeft <= 7) {
     tone = "border-brand-200 bg-brand-50 text-brand-800";
     text = b.daysLeft === 0 ? "Your Gustlog plan renews today." : `Your Gustlog plan is due for renewal in ${days(b.daysLeft)}.`;
+    showSubscribe = true;
   } else {
     return null;
   }
-  const Icon = b.state === "expired" || b.state === "grace" ? AlertTriangle : Clock;
+
+  const Icon = b.state === "expired" || (b.state === "trial" && b.daysLeft <= 3) || b.state === "grace" ? AlertTriangle : Clock;
   return (
-    <div className={clsx("mb-6 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm", tone)} role="status">
-      <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <span>{text}</span>
+    <div className={clsx("mb-6 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm", tone)} role="status">
+      <div className="flex items-center gap-3">
+        <Icon className="size-4 shrink-0" aria-hidden />
+        <span className="font-medium">{text}</span>
+      </div>
+      {showSubscribe && (
+        <Link
+          to="/billing"
+          className="ml-auto shrink-0 rounded-lg bg-ink px-3 py-1 text-xs font-semibold text-white transition hover:bg-ink/90"
+        >
+          Subscribe
+        </Link>
+      )}
     </div>
   );
 }

@@ -406,12 +406,19 @@ func (h *Handler) Access(next http.Handler) http.Handler {
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			readOnly := ends == nil // no subscription at all: treat as lapsed
+			var st billing.Status
 			if ends != nil {
-				readOnly = billing.Subscription{EndsOn: *ends, GraceDays: *grace, IsTrial: *trial}.StatusOn(Today()).ReadOnly
+				st = billing.Subscription{EndsOn: *ends, GraceDays: *grace, IsTrial: *trial}.StatusOn(Today())
+				readOnly = st.ReadOnly
 			}
 			if readOnly {
-				httpx.WriteError(w, r, &httpx.Error{Status: http.StatusPaymentRequired, Code: "subscription_expired",
-					Message: "Your Gustlog plan for this property has expired, so it's read-only. Renew to make changes."})
+				code := "subscription_expired"
+				msg := "Your Gustlog plan for this property has expired, so it's read-only. Renew to make changes."
+				if trial != nil && *trial {
+					code = "SUBSCRIPTION_REQUIRED"
+					msg = "Your free trial has ended. Subscribe to continue."
+				}
+				httpx.WriteError(w, r, &httpx.Error{Status: http.StatusPaymentRequired, Code: code, Message: msg})
 				return
 			}
 		}

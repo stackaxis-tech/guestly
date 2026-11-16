@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/mail"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
@@ -68,6 +71,165 @@ func presentedRefreshToken(r *http.Request) string {
 		return c.Value
 	}
 	return ""
+}
+
+var (
+	phoneRe = regexp.MustCompile(`^(?:\+91)?[6-9]\d{9}$`)
+)
+
+type registerReq struct {
+	HotelName     string `json:"hotelName"`
+	Name          string `json:"name"`
+	Email         string `json:"email"`
+	Phone         string `json:"phone"`
+	Password      string `json:"password"`
+	AcceptedTerms bool   `json:"acceptedTerms"`
+}
+
+func normalizeIndianPhone(raw string) string {
+	digits := regexp.MustCompile(`\D`).ReplaceAllString(raw, "")
+	if len(digits) == 12 && strings.HasPrefix(digits, "91") {
+		return digits[2:]
+	}
+	return digits
+}
+
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) error {
+	var req registerReq
+	if err := httpx.Decode(r, &req); err != nil {
+		return err
+	}
+
+	req.HotelName = strings.TrimSpace(req.HotelName)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Phone = strings.TrimSpace(req.Phone)
+
+	f := map[string]string{}
+	if len(req.HotelName) < 2 || len(req.HotelName) > 100 {
+		f["hotelName"] = "Hotel name must be between 2 and 100 characters."
+	}
+	if len(req.Name) < 2 || len(req.Name) > 80 {
+		f["name"] = "Your name must be between 2 and 80 characters."
+	}
+	if req.Email == "" {
+		f["email"] = "Enter a valid email address."
+	} else if _, err := mail.ParseAddress(req.Email); err != nil {
+		f["email"] = "Enter a valid email address."
+	}
+	normPhone := normalizeIndianPhone(req.Phone)
+	if !phoneRe.MatchString(req.Phone) || len(normPhone) != 10 {
+		f["phone"] = "Enter a valid 10-digit Indian mobile number."
+	}
+	if len(req.Password) < 8 {
+		f["password"] = "Password must be at least 8 characters."
+	}
+	if !req.AcceptedTerms {
+		f["acceptedTerms"] = "Please accept the Terms and Privacy Policy to continue."
+	}
+	if len(f) > 0 {
+		return httpx.Invalid(f)
+	}
+
+	ctx := r.Context()
+
+	// Check for duplicate email
+	var existingEmail string
+	err := h.DB.QueryRow(ctx, `SELECT email FROM users WHERE lower(email) = lower($1)`, req.Email).Scan(&existingEmail)
+	if err == nil {
+		return &httpx.Error{
+			Status:  http.StatusConflict,
+			Code:    "conflict",
+			Message: "An account with this email already exists. Sign in instead.",
+			Fields:  map[string]string{"email": "An account with this email already exists. Sign in instead."},
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
+	// Check for duplicate phone across users and organizations to prevent endless trial abuse (section 10)
+	var existingPhone string
+	err = h.DB.QueryRow(ctx, `
+		SELECT phone FROM users WHERE phone = $1
+		UNION
+		SELECT contact_phone FROM organizations WHERE contact_phone = $1 LIMIT 1`, normPhone).Scan(&existingPhone)
+	if err == nil {
+		return httpx.Invalid(map[string]string{
+			"phone": "A free trial has already been registered with this mobile number. Sign in or contact Gustlog.",
+		})
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var orgID string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO organizations (name, contact_name, contact_phone, contact_email)
+		VALUES ($1, $2, $3, $4) RETURNING id`,
+		req.HotelName, req.Name, normPhone, req.Email).Scan(&orgID); err != nil {
+		return err
+	}
+
+	var propID string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO properties (organization_id, name, phone, email, invoice_prefix)
+		VALUES ($1, $2, $3, $4, 'INV') RETURNING id`,
+		orgID, req.HotelName, normPhone, req.Email).Scan(&propID); err != nil {
+		return err
+	}
+
+	ist, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		ist = time.FixedZone("IST", 5*3600+1800)
+	}
+	today := time.Now().In(ist)
+	start := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	// 30 days trial: inclusive [today, today+29]
+	end := start.AddDate(0, 0, 29)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO subscriptions (property_id, plan, amount, period_months, is_trial, starts_on, ends_on, grace_days)
+		VALUES ($1, 'monthly', 0, 1, true, $2, $3, 7)`,
+		propID, start, end); err != nil {
+		return err
+	}
+
+	var u User
+	u.OrgID = orgID
+	u.Name = req.Name
+	u.Email = req.Email
+	u.Role = RoleOwner
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO users (organization_id, name, email, phone, role, password_hash)
+		VALUES ($1, $2, $3, $4, 'owner', $5)
+		RETURNING id`,
+		orgID, req.Name, req.Email, normPhone, string(hash)).Scan(&u.ID); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return &httpx.Error{
+				Status:  http.StatusConflict,
+				Code:    "conflict",
+				Message: "An account with this email already exists. Sign in instead.",
+				Fields:  map[string]string{"email": "An account with this email already exists. Sign in instead."},
+			}
+		}
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return h.startSession(w, r, u, http.StatusCreated)
 }
 
 type loginReq struct {

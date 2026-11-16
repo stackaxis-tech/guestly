@@ -12,6 +12,7 @@ import { isNative } from "./lib/platform";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { PropertyProvider } from "./lib/property";
 import { AuthPage } from "./pages/AuthPage";
+import { RegisterPage } from "./pages/RegisterPage";
 import { InvitePage } from "./pages/InvitePage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { RoomsPage } from "./pages/RoomsPage";
@@ -23,6 +24,7 @@ import { InvoicePage, PublicInvoicePage } from "./pages/InvoicePage";
 import { PublicReceiptPage } from "./pages/ReceiptPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { TodayPage } from "./pages/TodayPage";
+import { BillingPage } from "./pages/BillingPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +53,7 @@ function HotelApp() {
     return (
       <Routes>
         <Route path="/login" element={<AuthPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -71,6 +74,7 @@ function HotelApp() {
           <Route path="guests/:guestId" element={<GuestDetailPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="billing" element={<BillingPage />} />
         </Route>
         {/* A signed-in user opening an invite (e.g. someone else's) is sent home. */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -7,8 +7,18 @@ type AuthState =
   | { status: "signedOut"; user: null }
   | { status: "signedIn"; user: User };
 
+type RegisterData = {
+  hotelName: string;
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  acceptedTerms: boolean;
+};
+
 type AuthContextValue = AuthState & {
   login: (email: string, password: string) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   acceptInvite: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -41,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       login: async (email, password) => start(await api<Session>("/auth/login", { method: "POST", body: { email, password } })),
+      register: async (data: RegisterData) => start(await api<Session>("/auth/register", { method: "POST", body: data })),
       acceptInvite: async (token, password) =>
         start(await api<Session>(`/invites/${token}/accept`, { method: "POST", body: { password } })),
       logout: async () => {

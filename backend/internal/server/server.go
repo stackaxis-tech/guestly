@@ -63,6 +63,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 		// ---- Hotel staff ----
 		r.Route("/auth", func(r chi.Router) {
 			r.Method("POST", "/login", h(authH.Login))
+			r.Method("POST", "/register", h(authH.Register))
 			r.Method("POST", "/refresh", h(authH.Refresh))
 			r.Method("POST", "/logout", h(authH.Logout))
 		})
