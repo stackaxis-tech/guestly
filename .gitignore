@@ -10,3 +10,5 @@ deploy/web/
 deploy/.env
 deploy/ADMIN_CREDENTIALS.txt
 .playwright-mcp/
+# Copied from node_modules by frontend/scripts/ocr-assets.mjs
+frontend/public/ocr/

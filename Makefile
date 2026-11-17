@@ -26,7 +26,7 @@ web:           ## Run the frontend on :5180
 
 test:          ## Backend tests + frontend typecheck
 	cd backend && go vet ./... && go test ./...
-	cd frontend && npx tsc -b
+	cd frontend && npx tsc -b && npm test
 
 build:
 	cd backend && go build -o bin/api ./cmd/api

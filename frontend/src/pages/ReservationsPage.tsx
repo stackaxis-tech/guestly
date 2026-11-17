@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, LogIn, MessageCircle, Pencil, Plus, UserX, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { WhatsAppSend } from "../components/WhatsAppSend";
 import { Button, Card, ErrorNote, Field, Input, PageHeader, Select, Sheet, Spinner, Stepper, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
@@ -35,13 +35,44 @@ function shade(count: number): string {
   return "border-line bg-paper";
 }
 
+/** A new booking started elsewhere, e.g. a future arrival entered on the check-in page. */
+type Prefill = { checkIn: string; checkOut: string; name: string; phone: string; roomId: string; rate: string; adults: number; children: number };
+
+const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+
+function readPrefill(params: URLSearchParams, today: string): Prefill | null {
+  if (!params.get("new")) return null;
+  let checkIn = params.get("checkIn") ?? "";
+  if (!isoDate.test(checkIn) || checkIn < today) checkIn = today;
+  let checkOut = params.get("checkOut") ?? "";
+  if (!isoDate.test(checkOut) || checkOut <= checkIn) checkOut = addDays(checkIn, 1);
+  const count = (k: string, min: number) => Math.max(min, Number(params.get(k)) || min);
+  return {
+    checkIn,
+    checkOut,
+    name: params.get("name") ?? "",
+    phone: params.get("phone") ?? "",
+    roomId: params.get("room") ?? "",
+    rate: params.get("rate") ?? "",
+    adults: count("adults", 1),
+    children: count("children", 0),
+  };
+}
+
 export function ReservationsPage() {
   const property = useCurrentProperty();
   const today = hotelToday();
-  const thisMonth = () => new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, 1);
-  const [month, setMonth] = useState(thisMonth);
-  const [selected, setSelected] = useState(today);
-  const [editing, setEditing] = useState<Reservation | "new" | null>(null);
+  const [params, setParams] = useSearchParams();
+  const [prefill] = useState(() => readPrefill(params, today));
+  const monthOf = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, 1);
+  const thisMonth = () => monthOf(today);
+  const [month, setMonth] = useState(() => monthOf(prefill?.checkIn ?? today));
+  const [selected, setSelected] = useState(prefill?.checkIn ?? today);
+  const [editing, setEditing] = useState<Reservation | "new" | null>(prefill ? "new" : null);
+  // Open the prefilled form once; a reload shouldn't reopen it.
+  useEffect(() => {
+    if (params.get("new")) setParams({}, { replace: true });
+  }, [params, setParams]);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const days = useMemo(() => {
@@ -189,6 +220,7 @@ export function ReservationsPage() {
         <BookingForm
           booking={editing === "new" ? null : editing}
           initialCheckIn={selected >= today ? selected : today}
+          prefill={editing === "new" ? prefill : null}
           onClose={() => setEditing(null)}
           onSaved={(r) => {
             setEditing(null);
@@ -231,20 +263,33 @@ export function BookingRow({ r, onOpen, day }: { r: Reservation; onOpen: () => v
   );
 }
 
-function BookingForm({ booking, initialCheckIn, onClose, onSaved }: { booking: Reservation | null; initialCheckIn: string; onClose: () => void; onSaved: (r: Reservation) => void }) {
+function BookingForm({
+  booking,
+  initialCheckIn,
+  prefill,
+  onClose,
+  onSaved,
+}: {
+  booking: Reservation | null;
+  initialCheckIn: string;
+  prefill?: Prefill | null;
+  onClose: () => void;
+  onSaved: (r: Reservation) => void;
+}) {
   const property = useCurrentProperty();
   const pid = property.id;
   const fd = property.frontDesk;
   const invalidate = useInvalidateBookings(pid);
   const today = hotelToday();
-  const [name, setName] = useState(booking?.guestName ?? "");
-  const [phone, setPhone] = useState(booking?.guestPhone ?? "");
-  const [checkIn, setCheckIn] = useState(booking?.checkIn ?? initialCheckIn);
-  const [checkOut, setCheckOut] = useState(booking?.checkOut ?? addDays(initialCheckIn, 1));
-  const [roomId, setRoomId] = useState(booking?.roomId ?? "");
-  const [rate, setRate] = useState(booking ? String(booking.nightlyRate / 100) : "");
-  const [adults, setAdults] = useState(booking?.adults ?? 1);
-  const [children, setChildren] = useState(booking?.children ?? 0);
+  const [name, setName] = useState(booking?.guestName ?? prefill?.name ?? "");
+  const [phone, setPhone] = useState(booking?.guestPhone ?? prefill?.phone ?? "");
+  const [checkIn, setCheckIn] = useState(booking?.checkIn ?? prefill?.checkIn ?? initialCheckIn);
+  const [checkOut, setCheckOut] = useState(booking?.checkOut ?? prefill?.checkOut ?? addDays(initialCheckIn, 1));
+  // A prefilled room is kept only if it's free for these dates (see the effect below).
+  const [roomId, setRoomId] = useState(booking?.roomId ?? prefill?.roomId ?? "");
+  const [rate, setRate] = useState(booking ? String(booking.nightlyRate / 100) : prefill?.rate ?? "");
+  const [adults, setAdults] = useState(booking?.adults ?? prefill?.adults ?? 1);
+  const [children, setChildren] = useState(booking?.children ?? prefill?.children ?? 0);
   const [advance, setAdvance] = useState(booking?.advanceAmount ? String(booking.advanceAmount / 100) : "");
   const [mode, setMode] = useState<PayMode>(booking?.advanceMode ?? "upi");
   const [reference, setReference] = useState(booking?.advanceReference ?? "");

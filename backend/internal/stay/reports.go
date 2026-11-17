@@ -116,13 +116,14 @@ func (h *Handler) Report(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	// Room-nights sold: the nights each stay spent inside the range, in hotel dates.
+	// Room-nights sold: the nights each stay spent inside the range, in hotel dates,
+	// from its arrival night (a 2 AM walk-in took the night before; see ArrivalNight).
 	var rateNights int64
 	if err := h.DB.QueryRow(ctx, `
 		SELECT coalesce(sum(n), 0)::bigint, coalesce(sum(n * rate), 0)::bigint FROM (
 			SELECT s.nightly_rate AS rate,
 				greatest(0, least((coalesce(s.checked_out_at, s.expected_check_out_at) AT TIME ZONE 'Asia/Kolkata')::date, $3::date)
-					- greatest((s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date, $2::date)) AS n
+					- greatest(coalesce(s.arrival_date, (s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date), $2::date)) AS n
 			FROM stays s WHERE s.property_id = $1 AND s.status IN ('in_house', 'checked_out')
 		) x`, pid, from, end).Scan(&rep.RoomNights, &rateNights); err != nil {
 		return err

@@ -38,6 +38,38 @@ export function hotelToday(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
+/** The hotel's (India's) current date and HH:MM time, whatever time zone this device is set to. */
+export function hotelNow(): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, time: `${get("hour")}:${get("minute")}` };
+}
+
+/** An India date + HH:MM as an absolute instant (ISO), correct on a device in any time zone. */
+export function hotelInstant(date: string, hhmm: string): string {
+  return new Date(`${date}T${hhmm}:00+05:30`).toISOString();
+}
+
+/** The India calendar date of an instant. */
+export function hotelDateOf(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
+
+/** "Wed 19 Nov, 7:40 PM" in India time. */
+export function hotelDateTimeLabel(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * The hotel night a walk-in arriving now belongs to. Under a fixed checkout
+ * time, arriving before the cutoff (say 2 AM, cutoff 6 AM) takes the night
+ * that has already begun. Mirrors ArrivalNight in backend/internal/stay/bill.go.
+ */
+export function arrivalNight(now: { date: string; time: string }, cutoff: string, policy: "fixed" | "24h"): string {
+  return policy === "fixed" && now.time < cutoff ? addDays(now.date, -1) : now.date;
+}
+
 export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + n);

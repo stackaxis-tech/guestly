@@ -49,6 +49,9 @@ type Bill struct {
 	Balance  int64  `json:"balance"` // positive = guest owes
 	Nights   int    `json:"nights"`
 	Estimate bool   `json:"estimate"` // true while in-house (nights may still change)
+	// Checkout preview only: minutes past the checkout time (beyond the grace
+	// period), so staff can add a late-checkout fee if the hotel charges one.
+	LateCheckoutMinutes int `json:"lateCheckoutMinutes,omitempty"`
 }
 
 // MakeLine computes tax for one line. Each half of GST is rounded to the
@@ -78,15 +81,73 @@ func Summarize(lines []Line, paid int64, nights int, estimate bool) Bill {
 // timezone: the number of calendar dates crossed, minimum one. A late checkout
 // is charged with an explicit extra charge, not an automatic extra night.
 func Nights(in, out time.Time, loc *time.Location) int {
-	a := in.In(loc)
-	b := out.In(loc)
-	da := time.Date(a.Year(), a.Month(), a.Day(), 0, 0, 0, 0, time.UTC)
-	db := time.Date(b.Year(), b.Month(), b.Day(), 0, 0, 0, 0, time.UTC)
-	n := int(db.Sub(da).Hours() / 24)
-	if n < 1 {
-		return 1
+	return StayNights(in, out, StayRules{}, loc)
+}
+
+// StayRules are the billing rules a stay was checked in under. The zero value
+// is the original rule: fixed checkout, counted from the check-in date.
+type StayRules struct {
+	Policy      string        // "fixed" (leave by the checkout time) or "24h" (24 hours from check-in)
+	ArrivalDate string        // YYYY-MM-DD, the first night under "fixed"; "" means the check-in date
+	Grace       time.Duration // "24h": time allowed past each 24 hours before another night is due
+}
+
+// StayNights counts the nights to bill, minimum one.
+//   - fixed: hotel dates from the arrival night to the departure date. Leaving
+//     after the checkout time is a late checkout, charged explicitly, not a night.
+//   - 24h: one night per started 24 hours from check-in, after the grace period.
+func StayNights(in, out time.Time, r StayRules, loc *time.Location) int {
+	if r.Policy == "24h" {
+		over := out.Sub(in) - r.Grace
+		n := int((over + 24*time.Hour - 1) / (24 * time.Hour))
+		return max(1, n)
 	}
-	return n
+	start := dateOnly(in.In(loc))
+	if d, err := time.Parse(dateLayout, r.ArrivalDate); err == nil {
+		start = d
+	}
+	n := int(dateOnly(out.In(loc)).Sub(start).Hours() / 24)
+	return max(1, n)
+}
+
+func dateOnly(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// ArrivalNight is the hotel night a check-in at t belongs to. Before the
+// cutoff (say 06:00), a walk-in is taking the room for the night that has
+// already begun, so it's the previous date. A cutoff of "00:00" turns this off.
+func ArrivalNight(t time.Time, cutoff string, loc *time.Location) string {
+	local := t.In(loc)
+	if local.Format("15:04") < cutoff {
+		local = local.AddDate(0, 0, -1)
+	}
+	return local.Format(dateLayout)
+}
+
+// LateCheckout reports how far past the checkout time (plus grace) a fixed-
+// policy guest is leaving at now, or 0. It applies only on a day after the
+// arrival night; a guest who checked in today hasn't overstayed anything.
+func LateCheckout(now time.Time, r StayRules, checkIn time.Time, checkoutTime string, grace time.Duration, loc *time.Location) time.Duration {
+	if r.Policy == "24h" {
+		return 0 // already billed by the clock
+	}
+	local := now.In(loc)
+	arrival := r.ArrivalDate
+	if arrival == "" {
+		arrival = checkIn.In(loc).Format(dateLayout)
+	}
+	if local.Format(dateLayout) <= arrival {
+		return 0
+	}
+	due, err := time.ParseInLocation(dateLayout+" 15:04", local.Format(dateLayout)+" "+checkoutTime, loc)
+	if err != nil {
+		return 0
+	}
+	if late := now.Sub(due); late > grace {
+		return late
+	}
+	return 0
 }
 
 var nonDigits = regexp.MustCompile(`\D`)

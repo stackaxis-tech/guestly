@@ -146,9 +146,14 @@ func (h *Handler) Availability(w http.ResponseWriter, r *http.Request) error {
 
 // inHouseOverlap finds an in-house stay in room rm whose nights overlap $2..$3.
 const inHouseOverlap = `
-	SELECT 1 FROM stays s WHERE s.room_id = rm.id AND s.status = 'in_house' AND daterange(
+	SELECT 1 FROM stays s JOIN properties sp ON sp.id = s.property_id
+	WHERE s.room_id = rm.id AND s.status = 'in_house' AND daterange(
 		(s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date,
-		greatest((s.expected_check_out_at AT TIME ZONE 'Asia/Kolkata')::date, (s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date + 1)
+		greatest(
+			-- Due out after the check-in time: the room isn't free for that day's arrival (see occupiedRange).
+			(s.expected_check_out_at AT TIME ZONE 'Asia/Kolkata')::date
+				+ CASE WHEN (s.expected_check_out_at AT TIME ZONE 'Asia/Kolkata')::time > sp.check_in_time THEN 1 ELSE 0 END,
+			(s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date + 1)
 	) && daterange($2::date, $3::date)`
 
 func shortDay(s string) string {
@@ -174,6 +179,21 @@ func roomBookedError(ctx context.Context, q property.Querier, propertyID, roomID
 		return err
 	}
 	return httpx.Invalid(map[string]string{"roomId": fmt.Sprintf("This room is booked for %s, %s to %s. Choose another room.", guest, shortDay(in), shortDay(out))})
+}
+
+// occupiedRange is the hotel dates [from, to) an in-house stay keeps a room
+// from new arrivals. A guest due out after the hotel's check-in time (common
+// with 24-hour checkout) still has the room when that day's arrival comes, so
+// that day counts too.
+func occupiedRange(start, end time.Time, checkInTime string) (string, string) {
+	from, to := stayRange(start, end)
+	if end.In(property.IST).Format("15:04") > checkInTime {
+		next, _ := time.Parse(dateLayout, istDate(end))
+		if d := next.AddDate(0, 0, 1).Format(dateLayout); d > to {
+			to = d
+		}
+	}
+	return from, to
 }
 
 // stayRange returns the hotel dates [from, to) a stay occupies.

@@ -29,6 +29,10 @@ export type Property = {
     serviceGstRate: number;
     legalName: string;
     invoiceFooter: string;
+    checkoutPolicy: "fixed" | "24h";
+    /** HH:MM; walk-ins before it take the night that's already begun. "00:00" = off. */
+    earlyArrivalCutoff: string;
+    lateCheckoutGrace: number;
   };
   subscription?: {
     id: string;

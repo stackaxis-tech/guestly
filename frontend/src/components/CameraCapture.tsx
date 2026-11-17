@@ -8,7 +8,8 @@ import { Button } from "./ui";
 
 const MAX_EDGE = 1600;
 
-const SCAN_EDGE = 2400;
+// Photos that will be read for details keep the camera's full resolution.
+const SCAN_EDGE = 4096;
 
 /** Downscales and re-encodes an image as JPEG so uploads stay small (~150–400 KB). */
 export async function compressImage(source: Blob | HTMLCanvasElement, maxEdge = MAX_EDGE, quality = 0.82): Promise<Blob> {
@@ -37,13 +38,15 @@ type Props = {
   onChange: (b: Blob | null) => void;
   /** Ask staff to black out part of the image (Aadhaar number) before it's kept. */
   redact?: { instruction: string };
-  /** Receives a sharper copy of each new photo, before any masking, to read a QR code. */
-  onScan?: (b: Blob) => void;
+  /** Receives each new photo at full resolution, before any masking, to read the ID's details. */
+  onScan?: (src: Blob | HTMLCanvasElement) => void;
+  /** The live camera captures by itself as soon as it can read a QR code (Aadhaar). */
+  autoQR?: boolean;
   error?: string;
   shape?: "portrait" | "card";
 };
 
-export function CameraCapture({ label, hint, facing, value, onChange, redact, onScan, error, shape = "card" }: Props) {
+export function CameraCapture({ label, hint, facing, value, onChange, redact, onScan, autoQR, error, shape = "card" }: Props) {
   const [preview, setPreview] = useState("");
   const [live, setLive] = useState(false);
   const [toRedact, setToRedact] = useState<Blob | null>(null);
@@ -66,7 +69,7 @@ export function CameraCapture({ label, hint, facing, value, onChange, redact, on
     setBusy(true);
     setLocalError("");
     try {
-      if (onScan) onScan(await compressImage(raw, SCAN_EDGE, 0.92));
+      onScan?.(raw);
       const b = await compressImage(raw);
       if (redact) setToRedact(b);
       else onChange(b);
@@ -155,6 +158,7 @@ export function CameraCapture({ label, hint, facing, value, onChange, redact, on
         <LiveCamera
           facing={facing}
           maxEdge={onScan ? SCAN_EDGE : MAX_EDGE}
+          autoQR={autoQR}
           onClose={() => setLive(false)}
           onCapture={(c) => {
             setLive(false);
@@ -208,12 +212,14 @@ function Overlay({ children, onClose, title }: { children: React.ReactNode; onCl
 function LiveCamera({
   facing,
   maxEdge,
+  autoQR,
   onCapture,
   onClose,
   onUnavailable,
 }: {
   facing: "user" | "environment";
   maxEdge: number;
+  autoQR?: boolean;
   onCapture: (c: HTMLCanvasElement) => void;
   onClose: () => void;
   onUnavailable: () => void;
@@ -248,9 +254,9 @@ function LiveCamera({
     };
   }, [mode, maxEdge, onUnavailable]);
 
-  const capture = () => {
+  const frame = (): HTMLCanvasElement | null => {
     const v = video.current;
-    if (!v || !v.videoWidth) return;
+    if (!v || !v.videoWidth) return null;
     const scale = Math.min(1, maxEdge / Math.max(v.videoWidth, v.videoHeight));
     const c = document.createElement("canvas");
     c.width = Math.round(v.videoWidth * scale);
@@ -262,8 +268,44 @@ function LiveCamera({
       ctx.scale(-1, 1);
     }
     ctx.drawImage(v, 0, 0, c.width, c.height);
-    onCapture(c);
+    return c;
   };
+  const capture = () => {
+    const c = frame();
+    if (c) onCapture(c);
+  };
+
+  // Aadhaar: keep reading frames and take the photo as soon as the QR decodes,
+  // so staff don't have to hold a dense QR perfectly still for one shot.
+  const [found, setFound] = useState(false);
+  const onCaptureRef = useRef(onCapture);
+  onCaptureRef.current = onCapture;
+  useEffect(() => {
+    if (!autoQR || mode !== "environment") return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      const c = frame();
+      if (c) {
+        const { decodeQR } = await import("../lib/idscan/qr");
+        const text = await decodeQR(c, true).catch(() => null);
+        if (stopped) return;
+        if (text) {
+          setFound(true);
+          onCaptureRef.current(c);
+          return;
+        }
+      }
+      if (!stopped) timer = setTimeout(tick, 350);
+    };
+    timer = setTimeout(tick, 600);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+    // frame() reads only refs and state that restart this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoQR, mode]);
 
   return (
     <Overlay onClose={onClose} title={mode === "user" ? "Guest photo" : "Photograph the ID"}>
@@ -275,6 +317,11 @@ function LiveCamera({
         )}
         {!error && mode === "environment" && (
           <div className="pointer-events-none absolute inset-x-[8%] top-1/2 aspect-[1.586] -translate-y-1/2 rounded-2xl border-2 border-white/70" aria-hidden />
+        )}
+        {!error && autoQR && mode === "environment" && (
+          <p className="absolute inset-x-0 bottom-4 mx-auto w-fit rounded-full bg-black/60 px-4 py-1.5 text-sm" role="status">
+            {found ? "QR code read" : "Point at the QR code. It captures by itself, or tap the button."}
+          </p>
         )}
       </div>
       <div className="flex items-center justify-center gap-8 px-4 py-5">

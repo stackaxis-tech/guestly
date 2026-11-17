@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Button, Card, ErrorNote, Field, Input, PageHeader, Select, Sheet, Spinner, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { canManage, useAuth } from "../lib/auth";
-import { rupees, toPaise } from "../lib/format";
+import { clock12, rupees, toPaise } from "../lib/format";
 import { useCurrentProperty, type Property } from "../lib/property";
 import { LogoPicker } from "../components/PropertyLogo";
 import { PoweredBy } from "../components/PoweredBy";
@@ -357,6 +357,8 @@ function LogoCard({ readOnly }: { readOnly: boolean }) {
   );
 }
 
+const graceText = (m: number) => (m === 0 ? "a minute" : m < 60 ? `${m} minutes` : m === 60 ? "an hour" : `${m / 60} hours`);
+
 function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
   const property = useCurrentProperty();
   const qc = useQueryClient();
@@ -380,6 +382,9 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
           serviceGstRate: Number(v.serviceGstRate),
           legalName: v.legalName,
           invoiceFooter: v.invoiceFooter,
+          checkoutPolicy: v.checkoutPolicy,
+          earlyArrivalCutoff: v.earlyArrivalCutoff,
+          lateCheckoutGrace: Number(v.lateCheckoutGrace),
         },
       }),
     onSuccess: () => {
@@ -391,8 +396,11 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
     onError: (err) => err instanceof ApiError && err.fields && setErrors(err.fields),
   });
   const set = (k: string) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
-  const rateSelect = (k: "roomGstLow" | "roomGstHigh" | "serviceGstRate", label: string) => (
-    <Field label={label} error={errors[k]}>
+  // Say the slabs in rupees so nobody has to decode "≤" and ">".
+  const limitPaise = toPaise(v.threshold);
+  const limit = limitPaise !== null ? rupees(limitPaise) : "the limit";
+  const rateSelect = (k: "roomGstLow" | "roomGstHigh" | "serviceGstRate", label: string, hint?: string) => (
+    <Field label={label} error={errors[k]} hint={hint}>
       {(id, d) => (
         <Select id={id} aria-describedby={d} disabled={readOnly || !v.gstRegistered} value={String(v[k])} onChange={(e) => setV({ ...v, [k]: Number(e.target.value) })}>
           {[0, 5, 12, 18, 28].map((r) => (
@@ -426,6 +434,62 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
         <Field label="Wi-Fi password" optional>
           {(id, d) => <Input id={id} aria-describedby={d} disabled={readOnly} value={v.wifiPassword} onChange={set("wifiPassword")} />}
         </Field>
+        <div className="flex flex-col gap-4 rounded-lg border border-line px-4 py-4 sm:col-span-2">
+          <div>
+            <p className="text-sm font-semibold">Check-in & checkout rules</p>
+            <p className="text-sm text-muted">How nights are counted on bills. Guests already in-house keep the rules they checked in under.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Checkout rule" error={errors.checkoutPolicy}>
+              {(id, d) => (
+                <Select id={id} aria-describedby={d} disabled={readOnly} value={v.checkoutPolicy} onChange={(e) => setV({ ...v, checkoutPolicy: e.target.value as "fixed" | "24h" })}>
+                  <option value="fixed">Fixed time ({clock12(property.checkOutTime)})</option>
+                  <option value="24h">24 hours from check-in</option>
+                </Select>
+              )}
+            </Field>
+            {v.checkoutPolicy === "fixed" && (
+              <Field label="Night arrivals before" error={errors.earlyArrivalCutoff} hint="Count as the previous night">
+                {(id, d) => (
+                  <Select id={id} aria-describedby={d} disabled={readOnly} value={v.earlyArrivalCutoff} onChange={set("earlyArrivalCutoff")}>
+                    <option value="00:00">Off</option>
+                    {["04:00", "05:00", "06:00", "07:00", "08:00"].map((t) => (
+                      <option key={t} value={t}>
+                        {clock12(t)}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            )}
+            <Field label={v.checkoutPolicy === "fixed" ? "Late checkout after" : "Grace before next night"} error={errors.lateCheckoutGrace}>
+              {(id, d) => (
+                <Select id={id} aria-describedby={d} disabled={readOnly} value={String(v.lateCheckoutGrace)} onChange={(e) => setV({ ...v, lateCheckoutGrace: Number(e.target.value) })}>
+                  {[0, 30, 60, 90, 120, 180].map((m) => (
+                    <option key={m} value={m}>
+                      {m === 0 ? "No grace" : m < 60 ? `${m} min` : `${m / 60} hour${m === 60 ? "" : "s"}`}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
+          <p className="rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-800" role="status">
+            {v.checkoutPolicy === "fixed" ? (
+              <>
+                Guests check in from <strong>{clock12(property.checkInTime)}</strong> and leave by <strong>{clock12(property.checkOutTime)}</strong>; one night per date.
+                {v.earlyArrivalCutoff !== "00:00" && (
+                  <> A walk-in before {clock12(v.earlyArrivalCutoff)} is billed from the previous night (e.g. arriving 2 AM on the 18th, the night of the 17th).</>
+                )}{" "}
+                Leaving more than {graceText(v.lateCheckoutGrace)} after {clock12(property.checkOutTime)} shows as a late checkout, with an option to add a half-day charge.
+              </>
+            ) : (
+              <>
+                One night per 24 hours from the check-in time: in at 7:40 PM, due out 7:40 PM. Staying more than {graceText(v.lateCheckoutGrace)} past that adds another night.
+              </>
+            )}
+          </p>
+        </div>
         <label className="flex items-start gap-3 rounded-lg border border-line px-4 py-3 sm:col-span-2">
           <input type="checkbox" className="mt-0.5 size-4 accent-brand-700" disabled={readOnly} checked={v.gstRegistered} onChange={(e) => setV({ ...v, gstRegistered: e.target.checked })} />
           <span className="text-sm">
@@ -433,14 +497,20 @@ function FrontDeskCard({ readOnly }: { readOnly: boolean }) {
             <span className="block text-muted">Room GST depends on the nightly rate. Confirm the rates with your CA.</span>
           </span>
         </label>
-        <Field label="Room rate threshold (per night)" error={errors.roomGstThreshold} hint="Rooms up to this rate use the lower GST.">
+        <Field label="Room rate limit for GST (per night)" error={errors.roomGstThreshold} hint="The nightly room rate where the higher GST starts." className="sm:col-span-2">
           {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" disabled={readOnly || !v.gstRegistered} value={v.threshold} onChange={set("threshold")} />}
         </Field>
-        <div className="grid grid-cols-3 gap-3">
-          {rateSelect("roomGstLow", "Room ≤")}
-          {rateSelect("roomGstHigh", "Room >")}
-          {rateSelect("serviceGstRate", "Services")}
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
+          {rateSelect("roomGstLow", `GST on rooms up to ${limit}`, `Rate of ${limit} or less per night`)}
+          {rateSelect("roomGstHigh", `GST on rooms above ${limit}`, `Rate more than ${limit} per night`)}
+          {rateSelect("serviceGstRate", "GST on other charges", "Food, laundry, extra bed…")}
         </div>
+        {v.gstRegistered && limitPaise !== null && (
+          <p className="rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-800 sm:col-span-2" role="status">
+            A room at <strong>{limit}</strong> or less per night is billed <strong>{v.roomGstLow}% GST</strong>. A room above {limit} is billed{" "}
+            <strong>{v.roomGstHigh}% GST</strong>. Other charges are billed <strong>{v.serviceGstRate}% GST</strong>.
+          </p>
+        )}
       </div>
       <div className="grid gap-4 border-t border-line px-5 py-5">
         <div>

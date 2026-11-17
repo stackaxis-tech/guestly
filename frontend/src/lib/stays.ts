@@ -17,7 +17,7 @@ export type Guest = {
   createdAt: string;
 };
 
-export type DocType = "aadhaar" | "passport" | "driving_licence" | "voter_id" | "other";
+export type DocType = "aadhaar" | "passport" | "driving_licence" | "voter_id" | "pan" | "other";
 
 export type GuestDocument = {
   id: string;
@@ -47,7 +47,13 @@ export type StaySummary = {
   checkedOutAt: string | null;
   nights: number | null;
   paid: number;
+  /** Rules the stay was checked in under. */
+  arrivalDate: string;
+  checkoutPolicy: CheckoutPolicy;
+  lateCheckoutGrace: number;
 };
+
+export type CheckoutPolicy = "fixed" | "24h";
 
 export type BillLine = {
   description: string;
@@ -71,6 +77,8 @@ export type Bill = {
   balance: number;
   nights: number;
   estimate: boolean;
+  /** Checkout preview only: minutes past the checkout time, beyond the grace period. */
+  lateCheckoutMinutes?: number;
 };
 
 export type StayPayment = {
@@ -172,6 +180,7 @@ export const docTypeLabel: Record<DocType, string> = {
   passport: "Passport",
   driving_licence: "Driving licence",
   voter_id: "Voter ID",
+  pan: "PAN card",
   other: "Other ID",
 };
 
@@ -197,6 +206,11 @@ export function scanAadhaar(propertyId: string, file: Blob): Promise<AadhaarDeta
   const fd = new FormData();
   fd.append("file", file, "aadhaar.jpg");
   return api<AadhaarDetails>(`/properties/${propertyId}/guests/scan-aadhaar`, { method: "POST", form: fd });
+}
+
+/** Parses Aadhaar QR text decoded on the device. The server returns only the last 4 digits. */
+export function parseAadhaarText(propertyId: string, text: string): Promise<AadhaarDetails> {
+  return api<AadhaarDetails>(`/properties/${propertyId}/guests/parse-aadhaar`, { method: "POST", body: { text } });
 }
 
 /** Loads an encrypted guest image as an object URL. Caller must revoke it. */

@@ -7,7 +7,8 @@ import { WhatsAppSend, messageTitle } from "../components/WhatsAppSend";
 import { Button, Card, Disclosure, ErrorNote, Field, Input, Select, Sheet, Spinner, Stepper, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { canManage, useAuth } from "../lib/auth";
-import { rupees, toPaise } from "../lib/format";
+import { clock12, rupees, toPaise } from "../lib/format";
+import { addDays, hotelDateOf, hotelDateTimeLabel, hotelInstant, nightsBetween } from "../lib/reservations";
 import { useCurrentProperty } from "../lib/property";
 import {
   COUNTRIES,
@@ -401,6 +402,8 @@ function useStayMutation<T>(stay: StayDetail, path: string, method: string, onDo
 }
 
 const QUICK_SERVICES = ["Breakfast", "Lunch", "Dinner", "Laundry", "Extra bed", "Airport pickup", "Early check-in", "Late checkout"];
+/** Early check-in and late checkout are part of the room, so they're billed at the room's GST rate. */
+const roomFee = (desc: string) => /^(early check-?in|late check-?out)$/i.test(desc.trim());
 
 function ChargeSheet({ stay, onClose }: { stay: StayDetail; onClose: () => void }) {
   const [desc, setDesc] = useState("");
@@ -416,7 +419,7 @@ function ChargeSheet({ stay, onClose }: { stay: StayDetail; onClose: () => void 
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button loading={save.isPending} onClick={() => save.mutate({ description: desc, quantity: Number(qty) || 0, unitPrice: toPaise(price) ?? 0 })}>
+          <Button loading={save.isPending} onClick={() => save.mutate({ description: desc, quantity: Number(qty) || 0, unitPrice: toPaise(price) ?? 0, kind: roomFee(desc) ? "room" : "service" })}>
             Add to bill
           </Button>
         </>
@@ -589,15 +592,18 @@ function PaymentSheet({ stay, onClose }: { stay: StayDetail; onClose: () => void
 
 function EditStaySheet({ stay, onClose }: { stay: StayDetail; onClose: () => void }) {
   const property = useCurrentProperty();
-  const local = new Date(stay.expectedCheckOutAt);
-  const [date, setDate] = useState(new Date(local.getTime() - local.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
+  // Dates are India dates, whatever time zone the device is in.
+  const [date, setDate] = useState(hotelDateOf(stay.expectedCheckOutAt));
+  const nights = Math.max(1, nightsBetween(stay.arrivalDate, date));
+  // Same rules the stay was checked in under: 24-hour stays end n × 24 h after check-in.
+  const expected =
+    stay.checkoutPolicy === "24h" ? new Date(new Date(stay.checkInAt).getTime() + nights * 86_400_000).toISOString() : hotelInstant(date, property.checkOutTime);
   const [rate, setRate] = useState(String(stay.nightlyRate / 100));
   const [adults, setAdults] = useState(String(stay.adults));
   const [children, setChildren] = useState(String(stay.children));
   const [notes, setNotes] = useState(stay.notes);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const save = useStayMutation(stay, "", "PUT", onClose, setErrors);
-  const [hh, mm] = property.checkOutTime.split(":");
   return (
     <Sheet
       open
@@ -610,7 +616,7 @@ function EditStaySheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
             loading={save.isPending}
             onClick={() =>
               save.mutate({
-                expectedCheckOutAt: new Date(`${date}T${hh}:${mm}:00`).toISOString(),
+                expectedCheckOutAt: expected,
                 nightlyRate: toPaise(rate) ?? -1,
                 adults: Number(adults),
                 children: Number(children),
@@ -624,8 +630,22 @@ function EditStaySheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
       }
     >
       <div className="flex flex-col gap-4">
-        <Field label="Checkout date" error={errors.expectedCheckOutAt}>
-          {(id, d) => <Input id={id} aria-describedby={d} type="date" value={date} onChange={(e) => setDate(e.target.value)} invalid={!!errors.expectedCheckOutAt} />}
+        <Field
+          label="Checkout date"
+          error={errors.expectedCheckOutAt}
+          hint={`${nights} ${nights === 1 ? "night" : "nights"} · due out ${hotelDateTimeLabel(expected)}${stay.checkoutPolicy === "24h" ? " (24-hour checkout)" : ""}`}
+        >
+          {(id, d) => (
+            <Input
+              id={id}
+              aria-describedby={d}
+              type="date"
+              min={addDays(stay.arrivalDate, 1)}
+              value={date}
+              onChange={(e) => e.target.value && setDate(e.target.value)}
+              invalid={!!errors.expectedCheckOutAt}
+            />
+          )}
         </Field>
         <Field label="Rate per night (before GST)" error={errors.nightlyRate}>
           {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} invalid={!!errors.nightlyRate} />}
@@ -638,6 +658,37 @@ function EditStaySheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
         {save.error && !(save.error instanceof ApiError && save.error.fields) && <ErrorNote message={save.error.message} />}
       </div>
     </Sheet>
+  );
+}
+
+/** Late checkout under a fixed checkout time: offer the usual half-day fee, at the room's GST rate. */
+function LateCheckoutNote({ stay, minutes, onAdded }: { stay: StayDetail; minutes: number; onAdded: () => void }) {
+  const property = useCurrentProperty();
+  const fee = Math.round(stay.nightlyRate / 2);
+  const already = stay.charges.some((c) => roomFee(c.description) && /late/i.test(c.description));
+  const add = useStayMutation<{ description: string; quantity: number; unitPrice: number; kind: string }>(stay, "/charges", "POST", onAdded, () => undefined);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return (
+    <div className="rounded-lg border border-accent-200 bg-accent-50 px-3 py-2 text-sm" role="status">
+      <p>
+        <strong>Late checkout:</strong> {h > 0 ? `${h} h ` : ""}
+        {m} min past {clock12(property.checkOutTime)}.
+        {already ? " A late checkout fee is already on the bill." : " Many hotels charge half a night for this."}
+      </p>
+      {!already && (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="mt-2"
+          loading={add.isPending}
+          onClick={() => add.mutate({ description: "Late checkout", quantity: 1, unitPrice: fee, kind: "room" })}
+        >
+          Add half-day fee ({rupees(fee)})
+        </Button>
+      )}
+      {add.error && <p className="mt-1 text-danger">{add.error.message}</p>}
+    </div>
   );
 }
 
@@ -726,8 +777,10 @@ function CheckoutSheet({ stay, onClose }: { stay: StayDetail; onClose: () => voi
       ) : (
         <div className="flex flex-col gap-5">
           <p className="rounded-lg bg-sand/60 px-3 py-2 text-xs text-ink-soft">
-            Final bill for <strong>{preview.data!.nights} {preview.data!.nights === 1 ? "night" : "nights"}</strong>, checking out now.
+            Final bill for <strong>{preview.data!.nights} {preview.data!.nights === 1 ? "night" : "nights"}</strong>, checking out now
+            {stay.checkoutPolicy === "24h" ? " (24-hour checkout)" : ""}.
           </p>
+          {(preview.data!.lateCheckoutMinutes ?? 0) > 0 && <LateCheckoutNote stay={stay} minutes={preview.data!.lateCheckoutMinutes!} onAdded={() => void preview.refetch()} />}
           <BillTable bill={preview.data!} />
           <Disclosure summary={billing.billToName ? `Billed to ${billing.billToName}` : "Bill to a company (GST invoice)"}>
             <BillingFields value={billing} onChange={setBilling} errors={errors} prefix="billing." />

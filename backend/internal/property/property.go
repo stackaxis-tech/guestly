@@ -58,7 +58,8 @@ const Columns = `p.id, p.name, p.address, p.city, p.state, p.pincode, p.phone, p
 	s.id, s.plan, s.amount, s.period_months, s.is_trial, s.starts_on, s.ends_on, s.grace_days,
 	p.whatsapp_number, p.whatsapp_open_in, p.wifi_name, p.wifi_password, p.gst_registered,
 	p.room_gst_threshold, p.room_gst_low::float8, p.room_gst_high::float8, p.service_gst_rate::float8,
-	p.legal_name, p.invoice_footer`
+	p.legal_name, p.invoice_footer,
+	p.checkout_policy, to_char(p.early_arrival_cutoff, 'HH24:MI'), p.late_checkout_grace`
 
 const From = ` FROM properties p LEFT JOIN subscriptions s ON s.property_id = p.id `
 
@@ -75,7 +76,8 @@ func Scan(row pgx.Row, signer storage.Signer) (Property, error) {
 		&subID, &plan, &amount, &months, &trial, &starts, &ends, &grace,
 		&p.FrontDesk.WhatsAppNumber, &p.FrontDesk.WhatsAppOpenIn, &p.FrontDesk.WifiName, &p.FrontDesk.WifiPassword,
 		&p.FrontDesk.GSTRegistered, &p.FrontDesk.RoomGSTThreshold, &p.FrontDesk.RoomGSTLow, &p.FrontDesk.RoomGSTHigh,
-		&p.FrontDesk.ServiceGSTRate, &p.FrontDesk.LegalName, &p.FrontDesk.InvoiceFooter)
+		&p.FrontDesk.ServiceGSTRate, &p.FrontDesk.LegalName, &p.FrontDesk.InvoiceFooter,
+		&p.FrontDesk.CheckoutPolicy, &p.FrontDesk.EarlyArrivalCutoff, &p.FrontDesk.LateCheckoutGrace)
 	if err != nil {
 		return p, err
 	}
@@ -319,6 +321,10 @@ type FrontDesk struct {
 	ServiceGSTRate   float64 `json:"serviceGstRate"`
 	LegalName        string  `json:"legalName"`     // name registered under GST, printed on invoices
 	InvoiceFooter    string  `json:"invoiceFooter"` // terms or thank-you line at the bottom of invoices
+	// Stay rules (see migration 00008).
+	CheckoutPolicy     string `json:"checkoutPolicy"`     // fixed | 24h
+	EarlyArrivalCutoff string `json:"earlyArrivalCutoff"` // HH:MM; "00:00" = off
+	LateCheckoutGrace  int    `json:"lateCheckoutGrace"`  // minutes
 }
 
 var allowedGST = map[float64]bool{0: true, 5: true, 12: true, 18: true, 28: true}
@@ -350,14 +356,25 @@ func (h *Handler) UpdateFrontDesk(w http.ResponseWriter, r *http.Request) error 
 			f[k] = "Use a GST rate of 0, 5, 12, 18 or 28%."
 		}
 	}
+	if in.CheckoutPolicy != "fixed" && in.CheckoutPolicy != "24h" {
+		f["checkoutPolicy"] = "Choose a checkout rule."
+	}
+	if !timeRe.MatchString(in.EarlyArrivalCutoff) || in.EarlyArrivalCutoff > "12:00" {
+		f["earlyArrivalCutoff"] = "Use a time between 12:00 AM and 12:00 PM."
+	}
+	if in.LateCheckoutGrace < 0 || in.LateCheckoutGrace > 360 {
+		f["lateCheckoutGrace"] = "Use 0 to 360 minutes."
+	}
 	if len(f) > 0 {
 		return httpx.Invalid(f)
 	}
 	if _, err := h.DB.Exec(r.Context(), `
 		UPDATE properties SET whatsapp_number=$2, whatsapp_open_in=$3, wifi_name=$4, wifi_password=$5, gst_registered=$6,
-			room_gst_threshold=$7, room_gst_low=$8, room_gst_high=$9, service_gst_rate=$10, legal_name=$11, invoice_footer=$12, updated_at=now()
+			room_gst_threshold=$7, room_gst_low=$8, room_gst_high=$9, service_gst_rate=$10, legal_name=$11, invoice_footer=$12,
+			checkout_policy=$13, early_arrival_cutoff=$14, late_checkout_grace=$15, updated_at=now()
 		WHERE id = $1`, ID(r.Context()), in.WhatsAppNumber, in.WhatsAppOpenIn, in.WifiName, in.WifiPassword, in.GSTRegistered,
-		in.RoomGSTThreshold, in.RoomGSTLow, in.RoomGSTHigh, in.ServiceGSTRate, in.LegalName, in.InvoiceFooter); err != nil {
+		in.RoomGSTThreshold, in.RoomGSTLow, in.RoomGSTHigh, in.ServiceGSTRate, in.LegalName, in.InvoiceFooter,
+		in.CheckoutPolicy, in.EarlyArrivalCutoff, in.LateCheckoutGrace); err != nil {
 		return err
 	}
 	return h.Get(w, r)
