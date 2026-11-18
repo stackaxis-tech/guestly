@@ -1,22 +1,32 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, BadgeCheck, BedDouble, IdCard, Loader2, Plus, ShieldCheck, Trash2, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, BadgeCheck, BedDouble, CalendarPlus, Clock, IdCard, Loader2, Plus, ShieldCheck, Trash2, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CameraCapture } from "../components/CameraCapture";
 import { Button, Card, Disclosure, ErrorNote, Field, Input, PageHeader, Select, Stepper, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { clock12, rupees, toPaise } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
-import { addDays as bookingAddDays, hotelToday, useReservation } from "../lib/reservations";
+import {
+  addDays as bookingAddDays,
+  arrivalNight,
+  dayLabel,
+  hotelDateOf,
+  hotelDateTimeLabel,
+  hotelInstant,
+  hotelNow,
+  hotelToday,
+  useReservation,
+  type AvailableRoom,
+} from "../lib/reservations";
+import { canScan, scanBothSides, scanDocument, ScanError, type ScanResult } from "../lib/idscan";
 import { useRooms } from "../lib/rooms";
 import {
   COUNTRIES,
   docTypeLabel,
   formatPhone,
-  scanAadhaar,
   uploadGuestImage,
-  type AadhaarDetails,
   type DocType,
   type Guest,
   type GuestDocument,
@@ -141,8 +151,8 @@ function PersonFields({ value, onChange, errors, prefix, compact }: { value: Per
   );
 }
 
-/** Fills empty fields from an Aadhaar scan. Differing values are kept unless forced, and reported as conflicts. */
-function mergeScan(p: PersonForm, d: AadhaarDetails, force: boolean): { next: PersonForm; conflicts: string[] } {
+/** Fills empty fields from an ID scan. Differing values are kept unless forced, and reported as conflicts. */
+function mergeScan(p: PersonForm, d: ScanResult, force: boolean): { next: PersonForm; conflicts: string[] } {
   const next = { ...p };
   const conflicts: string[] = [];
   const fields: [keyof PersonForm, string, string][] = [
@@ -150,10 +160,12 @@ function mergeScan(p: PersonForm, d: AadhaarDetails, force: boolean): { next: Pe
     ["gender", d.gender, "gender"],
     ["birthYear", d.birthYear ? String(d.birthYear) : "", "year of birth"],
     ["address", d.address, "address"],
+    ["nationality", d.nationality, "nationality"],
   ];
   for (const [key, scanned, label] of fields) {
     if (!scanned) continue;
-    const current = p[key].trim();
+    // India is only the form's default, so a passport's nationality replaces it.
+    const current = key === "nationality" && p.nationality === "IN" ? "" : p[key].trim();
     if (!current || force) next[key] = scanned;
     else if (current.toLowerCase() !== scanned.toLowerCase()) conflicts.push(label);
   }
@@ -161,15 +173,16 @@ function mergeScan(p: PersonForm, d: AadhaarDetails, force: boolean): { next: Pe
 }
 
 type ScanState =
-  | { state: "reading" }
-  | { state: "done"; details: AadhaarDetails; conflicts: string[] }
-  | { state: "failed"; message: string };
+  | { state: "reading"; type: DocType; message: string }
+  | { state: "done"; type: DocType; details: ScanResult; conflicts: string[] }
+  | { state: "failed"; type: DocType; message: string };
 
-function ScanNote({ scan, onUseAadhaar }: { scan: ScanState; onUseAadhaar: () => void }) {
+function ScanNote({ scan, onUseScanned }: { scan: ScanState; onUseScanned: () => void }) {
+  const label = docTypeLabel[scan.type];
   if (scan.state === "reading") {
     return (
       <p className="flex items-center gap-2 rounded-lg bg-sand/60 px-3 py-2 text-sm text-ink-soft" role="status">
-        <Loader2 className="size-4 animate-spin" aria-hidden /> Reading Aadhaar…
+        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden /> {scan.message}
       </p>
     );
   }
@@ -180,21 +193,65 @@ function ScanNote({ scan, onUseAadhaar }: { scan: ScanState; onUseAadhaar: () =>
       </p>
     );
   }
+  const expired = scan.details.expiry && scan.details.expiry < hotelToday();
   return (
     <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800" role="status">
       <p className="flex items-center gap-2 font-medium">
-        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Filled from Aadhaar, please check the details.
+        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Filled from the {label}. Please check the details.
       </p>
+      {expired && <p className="mt-1 font-semibold text-danger">This passport expired on {dayLabel(scan.details.expiry)}.</p>}
       {scan.conflicts.length > 0 && (
         <p className="mt-1">
-          Aadhaar shows a different {scan.conflicts.join(", ")}.{" "}
-          <button type="button" className="font-semibold underline" onClick={onUseAadhaar}>
-            Use Aadhaar details
+          The {label} shows a different {scan.conflicts.join(", ")}.{" "}
+          <button type="button" className="font-semibold underline" onClick={onUseScanned}>
+            Use {label} details
           </button>
         </p>
       )}
     </div>
   );
+}
+
+const scanHint: Record<DocType, string> = {
+  aadhaar: "Keep the QR code sharp to auto-fill",
+  passport: "Photo page, with the two <<< lines in view",
+  pan: "Flat, filling the frame, no glare",
+  voter_id: "Flat, filling the frame, no glare",
+  driving_licence: "Flat, filling the frame, no glare",
+  other: "Fill the frame with the card",
+};
+
+/** Explains, in the front desk's words, how this stay's dates will be billed. */
+function StayRulesNote({ policy, now, walkInNight, expectedOut }: { policy: "fixed" | "24h"; now: { date: string; time: string }; walkInNight: string; expectedOut: string }) {
+  const property = useCurrentProperty();
+  const fd = property.frontDesk;
+  let text: ReactNode = null;
+  if (policy === "24h") {
+    text = (
+      <>
+        24-hour checkout: in at {clock12(now.time)}, due out <strong>{hotelDateTimeLabel(expectedOut)}</strong>.
+      </>
+    );
+  } else if (walkInNight < now.date) {
+    text = (
+      <>
+        Arriving after midnight: billed from the night of <strong>{dayLabel(walkInNight)}</strong>. Arrivals before {clock12(fd.earlyArrivalCutoff)} take the night that has
+        already begun (Settings).
+      </>
+    );
+  } else if (now.time < property.checkInTime) {
+    text = (
+      <>
+        Early check-in: standard check-in is {clock12(property.checkInTime)}. If you charge for it, add <em>Early check-in</em> on the stay page after checking in.
+      </>
+    );
+  }
+  return text ? (
+    <p className="flex items-start gap-2 rounded-lg bg-sand/60 px-3 py-2 text-sm text-ink-soft sm:col-span-2" role="status">
+      <Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span>{text}</span>
+    </p>
+  ) : null;
 }
 
 function DocFields({
@@ -210,23 +267,29 @@ function DocFields({
   errors: Errors;
   prefix: string;
   nationality: string;
-  onScanned: (d: AadhaarDetails, force: boolean) => string[];
+  onScanned: (d: ScanResult, force: boolean) => string[];
 }) {
   const propertyId = useCurrentProperty().id;
   const [scan, setScan] = useState<ScanState | null>(null);
   // A scan finishes after the photo step, so it must merge into the latest form values.
   const latest = useRef(value);
   latest.current = value;
-  const runScan = (b: Blob) => {
-    setScan((s) => (s?.state === "done" ? s : { state: "reading" }));
-    scanAadhaar(propertyId, b)
+  const runScan = (src: Blob | HTMLCanvasElement) => {
+    const type = latest.current.type;
+    if (!canScan(type)) return;
+    // A good read from one side stays when the other side has nothing to read.
+    const keepDone = (s: ScanState | null) => s?.state === "done" && s.type === type;
+    setScan((s) => (keepDone(s) ? s : { state: "reading", type, message: `Reading the ${docTypeLabel[type]}…` }));
+    scanDocument(type, src, propertyId, (message) => setScan((s) => (s?.state === "reading" && s.type === type ? { ...s, message } : s)))
       .then((details) => {
-        if (details.last4 && !latest.current.number.trim()) onChange({ ...latest.current, number: details.last4 });
-        setScan({ state: "done", details, conflicts: onScanned(details, false) });
+        if (latest.current.type !== type) return; // ID type changed while reading
+        if (details.number && !latest.current.number.trim()) onChange({ ...latest.current, number: details.number });
+        setScan({ state: "done", type, details, conflicts: onScanned(details, false) });
       })
       .catch((err: unknown) => {
-        // The QR is on only one side of many cards, so a miss must not undo a good scan.
-        setScan((s) => (s?.state === "done" ? s : { state: "failed", message: err instanceof Error ? err.message : "Couldn't read the QR code. Please type the details." }));
+        if (latest.current.type !== type) return;
+        const message = err instanceof ScanError || err instanceof ApiError ? err.message : "Couldn't read the ID. Please type the details.";
+        setScan((s) => (keepDone(s) ? s : { state: "failed", type, message }));
       });
   };
   const foreign = nationality !== "IN";
@@ -236,7 +299,16 @@ function DocFields({
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="ID type" error={errors[prefix + "type"]}>
           {(id, d) => (
-            <Select id={id} aria-describedby={d} value={value.type} onChange={(e) => onChange({ ...value, type: e.target.value as DocType })} invalid={!!errors[prefix + "type"]}>
+            <Select
+              id={id}
+              aria-describedby={d}
+              value={value.type}
+              onChange={(e) => {
+                setScan(null);
+                onChange({ ...value, type: e.target.value as DocType });
+              }}
+              invalid={!!errors[prefix + "type"]}
+            >
               {(foreign ? (["passport"] as DocType[]) : (Object.keys(docTypeLabel) as DocType[])).map((t) => (
                 <option key={t} value={t}>
                   {docTypeLabel[t]}
@@ -268,13 +340,14 @@ function DocFields({
       <div className="grid gap-5 sm:grid-cols-2">
         <CameraCapture
           label="Front of ID"
-          hint={value.type === "aadhaar" ? "Keep the QR code sharp to auto-fill" : "Fill the frame with the card"}
+          hint={scanHint[value.type]}
           facing="environment"
           value={value.front}
           onChange={(b) => onChange({ ...value, front: b })}
           error={errors[prefix + "frontUploadId"]}
           redact={aadhaar ? { instruction: "Drag a box over the first 8 digits of the Aadhaar number. Only the last 4 should stay visible. On older cards, cover the QR code too." } : undefined}
-          onScan={aadhaar ? runScan : undefined}
+          onScan={canScan(value.type) ? runScan : undefined}
+          autoQR={aadhaar}
         />
         <CameraCapture
           label="Back of ID (optional)"
@@ -283,13 +356,14 @@ function DocFields({
           onChange={(b) => onChange({ ...value, back: b })}
           error={errors[prefix + "backUploadId"]}
           redact={aadhaar ? { instruction: "If the Aadhaar number appears on the back, cover the first 8 digits. On older cards, cover the QR code too." } : undefined}
-          onScan={aadhaar ? runScan : undefined}
+          onScan={scanBothSides(value.type) ? runScan : undefined}
+          autoQR={aadhaar}
         />
       </div>
-      {aadhaar && scan && (
+      {scan && scan.type === value.type && (
         <ScanNote
           scan={scan}
-          onUseAadhaar={() => {
+          onUseScanned={() => {
             if (scan.state !== "done") return;
             onScanned(scan.details, true);
             setScan({ ...scan, conflicts: [] });
@@ -342,9 +416,24 @@ export function CheckInPage() {
     [rooms.data, params],
   );
   const [roomId, setRoomId] = useState(params.get("room") ?? "");
-  const today = hotelToday();
-  const tomorrow = bookingAddDays(today, 1);
-  const [checkout, setCheckout] = useState(tomorrow);
+  // Dates follow the hotel's rules (Settings → Check-in & checkout rules), mirroring backend StayNights.
+  const policy = fd.checkoutPolicy;
+  const now = hotelNow();
+  const today = now.date;
+  // A walk-in before the cutoff (say 2 AM) takes the night that has already begun.
+  const walkInNight = arrivalNight(now, fd.earlyArrivalCutoff, policy);
+  // Check-in happens today. A later arrival can't be checked in yet, so it's handed to Reservations as a booking.
+  const [arrival, setArrival] = useState(today);
+  const later = arrival > today;
+  const firstNight = later ? arrival : walkInNight;
+  const [stayNights, setStayNights] = useState(1);
+  const setNights = (n: number) => setStayNights(Math.min(180, Math.max(1, Math.round(n) || 1)));
+  const checkout = bookingAddDays(firstNight, stayNights);
+  // When the guest is due out. 24-hour rule: n × 24 h from now; fixed: the checkout time on the last date.
+  const expectedOut = policy === "24h" && !later ? new Date(Date.now() + stayNights * 86_400_000).toISOString() : hotelInstant(checkout, property.checkOutTime);
+  // The room must be free from today until it's free for a new arrival (see backend occupiedRange).
+  const outDate = hotelDateOf(expectedOut);
+  const occupyTo = new Date(expectedOut).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) > property.checkInTime ? bookingAddDays(outDate, 1) : outDate;
   const [rate, setRate] = useState("");
   const [adults, setAdults] = useState("1");
   const [children, setChildren] = useState("0");
@@ -367,11 +456,24 @@ export function CheckInPage() {
   const reservation = booking.data?.status === "booked" ? booking.data : undefined;
   const applied = useRef(false);
 
+  // Ready rooms booked for someone else during this stay can't be given out.
+  const free = useQuery({
+    queryKey: ["availability", pid, today, occupyTo, reservationId ?? ""],
+    queryFn: () => api<AvailableRoom[]>(`/properties/${pid}/reservations/availability?from=${today}&to=${occupyTo}&exclude=${reservationId ?? ""}`),
+    enabled: !later && occupyTo > today,
+    placeholderData: (prev) => prev,
+  });
+  const freeIds = useMemo(() => (free.data ? new Set(free.data.map((r) => r.id)) : null), [free.data]);
+  const isFree = useCallback((id: string) => !freeIds || freeIds.has(id), [freeIds]);
+
   // Default room + rate
   useEffect(() => {
-    if (!roomId && ready[0] && !reservationId) setRoomId(ready[0].id);
-  }, [ready, roomId, reservationId]);
+    if (roomId || reservationId) return;
+    const first = ready.find((r) => isFree(r.id));
+    if (first) setRoomId(first.id);
+  }, [ready, roomId, reservationId, isFree]);
   const room = ready.find((r) => r.id === roomId);
+  const roomTaken = !!room && !later && !isFree(room.id);
   useEffect(() => {
     if (!room) return;
     // The rate agreed at booking stands, even if the guest has to move rooms.
@@ -382,7 +484,7 @@ export function CheckInPage() {
     applied.current = true;
     const stillReady = ready.some((r) => r.id === reservation.roomId);
     setRoomId(stillReady ? reservation.roomId : ready[0]?.id ?? "");
-    setCheckout(reservation.checkOut > today ? reservation.checkOut : tomorrow);
+    setNights(reservation.checkOut > today ? nightsBetween(walkInNight, reservation.checkOut) : 1);
     setAdults(String(reservation.adults));
     setChildren(String(reservation.children));
     setConsent(reservation.whatsappConsent);
@@ -435,7 +537,15 @@ export function CheckInPage() {
   };
 
   // Live estimate
-  const nights = nightsBetween(today, checkout);
+  const nights = stayNights;
+
+  /** Opens Reservations with a new booking prefilled from this form. */
+  const bookForLater = () => {
+    const q = new URLSearchParams({ new: "1", checkIn: arrival, checkOut: checkout, name: person.name.trim(), phone, adults, children });
+    if (room) q.set("room", room.id);
+    if (toPaise(rate) !== null) q.set("rate", rate);
+    navigate(`/reservations?${q}`);
+  };
   const ratePaise = toPaise(rate) ?? 0;
   const gstPct = !fd.gstRegistered ? 0 : ratePaise <= fd.roomGstThreshold ? fd.roomGstLow : fd.roomGstHigh;
   const roomTotal = Math.round(ratePaise * nights * (1 + gstPct / 100));
@@ -451,6 +561,7 @@ export function CheckInPage() {
         if (c.addId && !c.doc.front) clientErrors[`companions.${i}.document.frontUploadId`] = "Take a photo of their ID, or remove the ID.";
       });
       if (!roomId) clientErrors.roomId = "Choose a room.";
+      else if (roomTaken) clientErrors.roomId = `Room ${room!.number} is booked for another guest during these dates. Choose another room or shorten the stay.`;
       if (toPaise(rate) === null) clientErrors.nightlyRate = "Enter the nightly rate.";
       if (Object.keys(clientErrors).length) throw new ApiError(422, "validation_failed", "Some fields need attention.", clientErrors);
 
@@ -499,8 +610,6 @@ export function CheckInPage() {
         });
       }
       setProgress("Checking in…");
-      const [hh, mm] = property.checkOutTime.split(":");
-      const expected = new Date(`${checkout}T${hh}:${mm}:00`);
       const amount = toPaise(advance) ?? 0;
       return api<StayDetail>(`/properties/${pid}/stays`, {
         method: "POST",
@@ -520,7 +629,7 @@ export function CheckInPage() {
           companions: comps,
           roomId,
           nightlyRate: toPaise(rate),
-          expectedCheckOutAt: expected.toISOString(),
+          expectedCheckOutAt: expectedOut,
           adults: Number(adults) || 1,
           children: Number(children) || 0,
           purpose,
@@ -579,6 +688,7 @@ export function CheckInPage() {
         className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]"
         onSubmit={(e) => {
           e.preventDefault();
+          if (later) return bookForLater();
           setErrors({});
           submit.mutate();
         }}
@@ -737,11 +847,15 @@ export function CheckInPage() {
                               prefix={`companions.${i}.document.`}
                               nationality={c.person.nationality}
                               onScanned={(d, force) => {
-                                // Companions only record a name; other scanned fields aren't sent.
+                                // Companions only record a name and nationality; other scanned fields aren't sent.
                                 const cur = companionsRef.current.find((x) => x.key === c.key);
                                 if (!cur) return [];
-                                const { next, conflicts } = mergeScan({ ...emptyPerson(), name: cur.person.name }, { ...d, gender: "", birthYear: null, address: "" }, force);
-                                setCompanions((cs) => cs.map((x) => (x.key === c.key ? { ...x, person: { ...x.person, name: next.name } } : x)));
+                                const { next, conflicts } = mergeScan(
+                                  { ...emptyPerson(), name: cur.person.name, nationality: cur.person.nationality },
+                                  { ...d, gender: "", birthYear: null, address: "" },
+                                  force,
+                                );
+                                setCompanions((cs) => cs.map((x) => (x.key === c.key ? { ...x, person: { ...x.person, name: next.name, nationality: next.nationality } } : x)));
                                 return conflicts;
                               }}
                             />
@@ -756,7 +870,11 @@ export function CheckInPage() {
 
             <Section icon={BedDouble} title="Room & stay" description="Only rooms marked ready are listed.">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Room" error={errors.roomId} className="sm:col-span-2">
+                <Field
+                  label="Room"
+                  error={errors.roomId || (roomTaken ? `Room ${room!.number} is booked for another guest during these dates. Choose another room or shorten the stay.` : undefined)}
+                  className="sm:col-span-2"
+                >
                   {(id, d) =>
                     ready.length === 0 ? (
                       <p id={id} className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
@@ -765,21 +883,98 @@ export function CheckInPage() {
                     ) : (
                       <Select id={id} aria-describedby={d} value={roomId} onChange={(e) => setRoomId(e.target.value)} invalid={!!errors.roomId}>
                         {ready.map((r) => (
-                          <option key={r.id} value={r.id}>
+                          <option key={r.id} value={r.id} disabled={!later && !isFree(r.id) && r.id !== roomId}>
                             Room {r.number} · {r.typeName} · {r.bedType} · {rupees(r.baseRate)}
+                            {!later && !isFree(r.id) ? " · booked during these dates" : ""}
                           </option>
                         ))}
                       </Select>
                     )
                   }
                 </Field>
-                <Field label="Checkout date" error={errors.expectedCheckOutAt} hint={`${nights} ${nights === 1 ? "night" : "nights"} · checkout at ${clock12(property.checkOutTime)}`}>
+                <Field label="Check-in date" hint={later ? "Future date: this will be a booking" : `Now, ${clock12(now.time)}`}>
                   {(id, d) => (
-                    <Input id={id} aria-describedby={d} type="date" min={tomorrow} value={checkout} onChange={(e) => setCheckout(e.target.value)} invalid={!!errors.expectedCheckOutAt} />
+                    <Input
+                      id={id}
+                      aria-describedby={d}
+                      type="date"
+                      min={today}
+                      // A booking being checked in starts now, whatever date it was booked for.
+                      disabled={!!reservation}
+                      value={arrival}
+                      onChange={(e) => {
+                        const v = e.target.value || today;
+                        setArrival(v < today ? today : v);
+                      }}
+                    />
                   )}
                 </Field>
+                {policy === "24h" && !later ? (
+                  <Field label="Nights (24 hours each)" error={errors.expectedCheckOutAt} hint={`Due out ${hotelDateTimeLabel(expectedOut)}`}>
+                    {(id) => <Stepper id={id} label="nights" min={1} value={stayNights} onChange={setNights} />}
+                  </Field>
+                ) : (
+                  <Field
+                    label="Checkout date"
+                    error={errors.expectedCheckOutAt}
+                    hint={`${stayNights} ${stayNights === 1 ? "night" : "nights"} · leave by ${clock12(property.checkOutTime)}`}
+                  >
+                    {(id, d) => (
+                      <Input
+                        id={id}
+                        aria-describedby={d}
+                        type="date"
+                        min={bookingAddDays(firstNight, 1)}
+                        max={bookingAddDays(firstNight, 180)}
+                        value={checkout}
+                        onChange={(e) => e.target.value && setNights(nightsBetween(firstNight, e.target.value))}
+                        invalid={!!errors.expectedCheckOutAt}
+                      />
+                    )}
+                  </Field>
+                )}
+                <div className="flex flex-wrap items-center gap-2 sm:col-span-2" role="group" aria-label="Length of stay">
+                  <span className="text-sm text-muted">Stay:</span>
+                  {[1, 2, 3, 7].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setNights(n)}
+                      className={clsx(
+                        "rounded-full border px-3 py-1 text-sm font-medium",
+                        stayNights === n ? "border-brand-700 bg-brand-50 text-brand-800" : "border-line text-ink-soft hover:border-line-strong",
+                      )}
+                    >
+                      {n === 7 ? "1 week" : `${n} night${n === 1 ? "" : "s"}`}
+                    </button>
+                  ))}
+                </div>
+                {!later && <StayRulesNote policy={policy} now={now} walkInNight={walkInNight} expectedOut={expectedOut} />}
+                {later && (
+                  <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm sm:col-span-2" role="status">
+                    <p>
+                      The guest arrives on <strong>{dayLabel(arrival)}</strong>, so they can't be checked in today. Save the stay as a booking; it holds the room, and you check them in from Reservations when they arrive.
+                    </p>
+                    <Button type="button" size="sm" className="mt-3" icon={<CalendarPlus className="size-4" />} onClick={bookForLater}>
+                      Book {dayLabel(arrival)} – {dayLabel(checkout)} ({stayNights} {stayNights === 1 ? "night" : "nights"})
+                    </Button>
+                  </div>
+                )}
                 <Field label="Rate per night (before GST)" error={errors.nightlyRate}>
-                  {(id, d) => <Input id={id} aria-describedby={d} prefix="₹" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} invalid={!!errors.nightlyRate} />}
+                  {(id, d) => (
+                    <Input
+                      id={id}
+                      aria-describedby={d}
+                      prefix="₹"
+                      inputMode="decimal"
+                      value={rate}
+                      onChange={(e) => {
+                        setRate(e.target.value);
+                        if (errors.nightlyRate) setErrors((x) => ({ ...x, nightlyRate: "" }));
+                      }}
+                      invalid={!!errors.nightlyRate}
+                    />
+                  )}
                 </Field>
                 <div className="flex flex-wrap gap-x-6 gap-y-4 sm:col-span-2">
                   <Field label="Adults" error={errors.adults}>
@@ -907,7 +1102,7 @@ export function CheckInPage() {
                   <span className="mr-auto min-w-0">
                     <span className="tabular block font-display text-lg leading-tight font-bold">{rupees(roomTotal)}</span>
                     <span className="block truncate text-xs text-muted">
-                      Room {room.number} · {nightsLabel}
+                      Room {room.number} · {nightsLabel} · out {hotelDateTimeLabel(expectedOut)}
                     </span>
                   </span>
                 )
@@ -916,9 +1111,15 @@ export function CheckInPage() {
               <Link to="/" className="hidden sm:block">
                 <Button type="button" variant="secondary">Cancel</Button>
               </Link>
-              <Button type="submit" loading={submit.isPending} disabled={ready.length === 0}>
-                Check in{room ? ` to ${room.number}` : ""}
-              </Button>
+              {later ? (
+                <Button type="button" icon={<CalendarPlus className="size-4" />} onClick={bookForLater}>
+                  Create booking
+                </Button>
+              ) : (
+                <Button type="submit" loading={submit.isPending} disabled={ready.length === 0}>
+                  Check in{room ? ` to ${room.number}` : ""}
+                </Button>
+              )}
               </div>
             </div>
       </form>

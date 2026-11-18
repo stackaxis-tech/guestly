@@ -146,9 +146,14 @@ func (h *Handler) Availability(w http.ResponseWriter, r *http.Request) error {
 
 // inHouseOverlap finds an in-house stay in room rm whose nights overlap $2..$3.
 const inHouseOverlap = `
-	SELECT 1 FROM stays s WHERE s.room_id = rm.id AND s.status = 'in_house' AND daterange(
+	SELECT 1 FROM stays s JOIN properties sp ON sp.id = s.property_id
+	WHERE s.room_id = rm.id AND s.status = 'in_house' AND daterange(
 		(s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date,
-		greatest((s.expected_check_out_at AT TIME ZONE 'Asia/Kolkata')::date, (s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date + 1)
+		greatest(
+			-- Due out after the check-in time: the room isn't free for that day's arrival (see occupiedRange).
+			(s.expected_check_out_at AT TIME ZONE 'Asia/Kolkata')::date
+				+ CASE WHEN (s.expected_check_out_at AT TIME ZONE 'Asia/Kolkata')::time > sp.check_in_time THEN 1 ELSE 0 END,
+			(s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date + 1)
 	) && daterange($2::date, $3::date)`
 
 func shortDay(s string) string {
@@ -159,21 +164,54 @@ func shortDay(s string) string {
 	return t.Format("2 Jan")
 }
 
-// roomBookedError reports a live booking overlapping [from, to), other than exclude.
-func roomBookedError(ctx context.Context, q property.Querier, propertyID, roomID, from, to, exclude string) error {
-	var guest, in, out string
-	err := q.QueryRow(ctx, `
+// bookingClash finds the first live booking overlapping [from, to), other than exclude.
+// ok is false when there is none.
+func bookingClash(ctx context.Context, q property.Querier, propertyID, roomID, from, to, exclude string) (guest, in, out string, ok bool, err error) {
+	err = q.QueryRow(ctx, `
 		SELECT guest_name, to_char(check_in, 'YYYY-MM-DD'), to_char(check_out, 'YYYY-MM-DD') FROM reservations
 		WHERE property_id = $1 AND room_id::text = $2 AND status = 'booked' AND id::text <> $5
 		  AND daterange(check_in, check_out) && daterange($3::date, $4::date)
 		ORDER BY check_in LIMIT 1`, propertyID, roomID, from, to, exclude).Scan(&guest, &in, &out)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return "", "", "", false, nil
 	}
+	return guest, in, out, err == nil, err
+}
+
+// clockLabel turns "11:00" into "11 AM" and "13:30" into "1:30 PM".
+func clockLabel(hhmm string) string {
+	t, err := time.Parse("15:04", hhmm)
 	if err != nil {
+		return hhmm
+	}
+	if t.Minute() == 0 {
+		return t.Format("3 PM")
+	}
+	return t.Format("3:04 PM")
+}
+
+// roomBookedError reports a live booking overlapping [from, to), other than exclude.
+func roomBookedError(ctx context.Context, q property.Querier, propertyID, roomID, from, to, exclude string) error {
+	guest, in, out, ok, err := bookingClash(ctx, q, propertyID, roomID, from, to, exclude)
+	if !ok {
 		return err
 	}
 	return httpx.Invalid(map[string]string{"roomId": fmt.Sprintf("This room is booked for %s, %s to %s. Choose another room.", guest, shortDay(in), shortDay(out))})
+}
+
+// occupiedRange is the hotel dates [from, to) an in-house stay keeps a room
+// from new arrivals. A guest due out after the hotel's check-in time (common
+// with 24-hour checkout) still has the room when that day's arrival comes, so
+// that day counts too.
+func occupiedRange(start, end time.Time, checkInTime string) (string, string) {
+	from, to := stayRange(start, end)
+	if end.In(property.IST).Format("15:04") > checkInTime {
+		next, _ := time.Parse(dateLayout, istDate(end))
+		if d := next.AddDate(0, 0, 1).Format(dateLayout); d > to {
+			to = d
+		}
+	}
+	return from, to
 }
 
 // stayRange returns the hotel dates [from, to) a stay occupies.

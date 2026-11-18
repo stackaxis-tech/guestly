@@ -3,9 +3,11 @@ package stay
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/mail"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -72,7 +74,10 @@ type checkInReq struct {
 	ReservationID      string           `json:"reservationId"` // set when arriving on a booking
 }
 
-var docTypes = map[string]bool{"aadhaar": true, "passport": true, "driving_licence": true, "voter_id": true, "other": true}
+var docTypes = map[string]bool{"aadhaar": true, "passport": true, "driving_licence": true, "voter_id": true, "pan": true, "other": true}
+
+// panRe: five letters, four digits, a letter. The fourth letter is the holder type (P = person).
+var panRe = regexp.MustCompile(`^[A-Z]{3}[ABCFGHJLPT][A-Z][0-9]{4}[A-Z]$`)
 var payModes = map[string]bool{"cash": true, "upi": true, "card": true, "bank": true, "other": true}
 
 func (g *guestInput) normalize(f map[string]string, prefix string) {
@@ -128,6 +133,10 @@ func (d *documentInput) normalize(f map[string]string, prefix, nationality strin
 			f[prefix+"number"] = "Enter the 12-digit Aadhaar number (or just the last 4 digits)."
 		}
 		d.Number = n
+	case "pan":
+		if d.Number != "" && !panRe.MatchString(d.Number) {
+			f[prefix+"number"] = "Enter the 10-character PAN, like ABCPE1234F."
+		}
 	default:
 		if len(d.Number) > 30 {
 			f[prefix+"number"] = "ID number is too long."
@@ -311,8 +320,17 @@ func (h *Handler) CheckIn(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	prop, err := h.loadProperty(ctx)
+	if err != nil {
+		return err
+	}
+	fd := prop.FrontDesk
+	arrival := ArrivalNight(now, fd.EarlyArrivalCutoff, property.IST)
+	if fd.CheckoutPolicy == "24h" {
+		arrival = istDate(now) // billed by the clock, not by dates
+	}
 	// A walk-in can't take a room that's promised to someone else on those nights.
-	occupyFrom, occupyTo := stayRange(now, req.ExpectedCheckOutAt)
+	occupyFrom, occupyTo := occupiedRange(now, req.ExpectedCheckOutAt, prop.CheckInTime)
 	if err := roomBookedError(ctx, tx, propertyID, req.RoomID, occupyFrom, occupyTo, req.ReservationID); err != nil {
 		return err
 	}
@@ -339,11 +357,11 @@ func (h *Handler) CheckIn(w http.ResponseWriter, r *http.Request) error {
 	var stayID string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO stays (property_id, room_id, guest_id, adults, children, nightly_rate, check_in_at, expected_check_out_at,
-			purpose, coming_from, going_to, notes, checked_in_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+			purpose, coming_from, going_to, notes, checked_in_by, arrival_date, checkout_policy, late_checkout_grace)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
 		propertyID, req.RoomID, guestID, req.Adults, req.Children, req.NightlyRate, now, req.ExpectedCheckOutAt,
 		strings.TrimSpace(req.Purpose), strings.TrimSpace(req.ComingFrom), strings.TrimSpace(req.GoingTo), strings.TrimSpace(req.Notes),
-		auth.FromContext(ctx).UserID).Scan(&stayID)
+		auth.FromContext(ctx).UserID, arrival, fd.CheckoutPolicy, fd.LateCheckoutGrace).Scan(&stayID)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return httpx.Conflict("Someone just checked a guest into this room. Choose another room.")
@@ -422,19 +440,30 @@ type StaySummary struct {
 	CheckedOutAt       *time.Time `json:"checkedOutAt"`
 	Nights             *int       `json:"nights"`
 	Paid               int64      `json:"paid"`
+	// Rules the stay was checked in under (see StayRules).
+	ArrivalDate       string `json:"arrivalDate"` // first night billed, YYYY-MM-DD
+	CheckoutPolicy    string `json:"checkoutPolicy"`
+	LateCheckoutGrace int    `json:"lateCheckoutGrace"` // minutes
+}
+
+func (s StaySummary) rules() StayRules {
+	return StayRules{Policy: s.CheckoutPolicy, ArrivalDate: s.ArrivalDate, Grace: time.Duration(s.LateCheckoutGrace) * time.Minute}
 }
 
 const staySelect = `
 	SELECT s.id, s.status, r.id, r.number, t.name, g.id, g.name, g.phone, s.adults, s.children, s.nightly_rate,
 		s.check_in_at, s.expected_check_out_at, s.checked_out_at, s.nights,
-		(SELECT coalesce(sum(amount), 0) FROM stay_payments p WHERE p.stay_id = s.id)
+		(SELECT coalesce(sum(amount), 0) FROM stay_payments p WHERE p.stay_id = s.id),
+		to_char(coalesce(s.arrival_date, (s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date), 'YYYY-MM-DD'),
+		coalesce(s.checkout_policy, 'fixed'), coalesce(s.late_checkout_grace, 60)
 	FROM stays s JOIN rooms r ON r.id = s.room_id JOIN room_types t ON t.id = r.room_type_id JOIN guests g ON g.id = s.guest_id
 	WHERE s.property_id = $1 AND `
 
 func scanSummary(row pgx.Row) (StaySummary, error) {
 	var s StaySummary
 	err := row.Scan(&s.ID, &s.Status, &s.RoomID, &s.RoomNumber, &s.RoomType, &s.GuestID, &s.GuestName, &s.GuestPhone,
-		&s.Adults, &s.Children, &s.NightlyRate, &s.CheckInAt, &s.ExpectedCheckOutAt, &s.CheckedOutAt, &s.Nights, &s.Paid)
+		&s.Adults, &s.Children, &s.NightlyRate, &s.CheckInAt, &s.ExpectedCheckOutAt, &s.CheckedOutAt, &s.Nights, &s.Paid,
+		&s.ArrivalDate, &s.CheckoutPolicy, &s.LateCheckoutGrace)
 	return s, err
 }
 
@@ -616,7 +645,7 @@ func computeBill(d StayDetail, tax TaxConfig, now time.Time) Bill {
 		if now.After(end) {
 			end = now
 		}
-		nights = Nights(d.CheckInAt, end, property.IST)
+		nights = StayNights(d.CheckInAt, end, d.rules(), property.IST)
 	}
 	label := "Room " + d.RoomNumber + " · " + d.RoomType + " · " + strconv.Itoa(nights) + " night"
 	if nights != 1 {
@@ -647,10 +676,12 @@ func (h *Handler) CheckoutPreview(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	now := time.Now()
-	n := Nights(d.CheckInAt, now, property.IST)
+	n := StayNights(d.CheckInAt, now, d.rules(), property.IST)
 	d.Nights = &n
 	d.Status = "checked_out" // compute as final
 	bill := computeBill(d, taxConfig(prop), now)
+	late := LateCheckout(now, d.rules(), d.CheckInAt, prop.CheckOutTime, d.rules().Grace, property.IST)
+	bill.LateCheckoutMinutes = int(late / time.Minute)
 	httpx.JSON(w, http.StatusOK, bill)
 	return nil
 }
@@ -743,13 +774,18 @@ func (h *Handler) UpdateStay(w http.ResponseWriter, r *http.Request) error {
 	if err := tx.QueryRow(ctx, `SELECT room_id FROM stays WHERE id::text = $1`, id).Scan(&roomID); err != nil {
 		return err
 	}
-	from, to := stayRange(time.Now(), in.ExpectedCheckOutAt)
-	if err := roomBookedError(ctx, tx, property.ID(ctx), roomID, from, to, ""); err != nil {
-		var apiErr *httpx.Error
-		if errors.As(err, &apiErr) && apiErr.Fields != nil {
-			return httpx.Invalid(map[string]string{"expectedCheckOutAt": apiErr.Fields["roomId"]})
-		}
+	prop, err := h.loadProperty(ctx)
+	if err != nil {
 		return err
+	}
+	from, to := occupiedRange(time.Now(), in.ExpectedCheckOutAt, prop.CheckInTime)
+	// The room can't change here, so say how to fix it: leave earlier, or move the booking.
+	if guest, bIn, _, ok, err := bookingClash(ctx, tx, property.ID(ctx), roomID, from, to, ""); err != nil {
+		return err
+	} else if ok {
+		return httpx.Invalid(map[string]string{"expectedCheckOutAt": fmt.Sprintf(
+			"This room is booked for %s from %s. Check out by %s at %s, or move %s's booking to another room on the Reservations page.",
+			guest, shortDay(bIn), shortDay(bIn), clockLabel(prop.CheckOutTime), guest)})
 	}
 	if _, err := tx.Exec(ctx, `UPDATE stays SET expected_check_out_at=$2, nightly_rate=$3, adults=$4, children=$5, notes=$6 WHERE id::text = $1`,
 		id, in.ExpectedCheckOutAt, in.NightlyRate, in.Adults, in.Children, strings.TrimSpace(in.Notes)); err != nil {
@@ -765,6 +801,9 @@ type chargeReq struct {
 	Description string `json:"description"`
 	Quantity    int    `json:"quantity"`
 	UnitPrice   int64  `json:"unitPrice"`
+	// "room" for early check-in / late checkout fees: they're part of the
+	// accommodation, so they take the room's GST slab, not the services rate.
+	Kind string `json:"kind"`
 }
 
 func (h *Handler) AddCharge(w http.ResponseWriter, r *http.Request) error {
@@ -782,6 +821,9 @@ func (h *Handler) AddCharge(w http.ResponseWriter, r *http.Request) error {
 	}
 	if in.UnitPrice <= 0 {
 		f["unitPrice"] = "Enter the price."
+	}
+	if in.Kind != "" && in.Kind != "room" && in.Kind != "service" {
+		f["kind"] = "Unknown charge type."
 	}
 	if len(f) > 0 {
 		return httpx.Invalid(f)
@@ -803,6 +845,13 @@ func (h *Handler) AddCharge(w http.ResponseWriter, r *http.Request) error {
 	defer tx.Rollback(ctx)
 	if _, _, err := lockStay(ctx, tx, id, "in_house"); err != nil {
 		return err
+	}
+	if in.Kind == "room" {
+		var nightly int64
+		if err := tx.QueryRow(ctx, `SELECT nightly_rate FROM stays WHERE id::text = $1`, id).Scan(&nightly); err != nil {
+			return err
+		}
+		rate = float64(taxConfig(prop).RoomRateBP(nightly)) / 100
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO stay_charges (stay_id, description, quantity, unit_price, gst_rate, charged_on, created_by)
 		VALUES ($1,$2,$3,$4,$5,$6,$7)`, id, in.Description, in.Quantity, in.UnitPrice, rate, property.Today(), auth.FromContext(ctx).UserID); err != nil {
@@ -931,10 +980,14 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) error {
 	now := time.Now()
 	var checkIn time.Time
 	var nightly int64
-	if err := tx.QueryRow(ctx, `SELECT check_in_at, nightly_rate FROM stays WHERE id::text = $1`, id).Scan(&checkIn, &nightly); err != nil {
+	var rules StaySummary
+	if err := tx.QueryRow(ctx, `
+		SELECT check_in_at, nightly_rate, to_char(coalesce(arrival_date, (check_in_at AT TIME ZONE 'Asia/Kolkata')::date), 'YYYY-MM-DD'),
+			coalesce(checkout_policy, 'fixed'), coalesce(late_checkout_grace, 60)
+		FROM stays WHERE id::text = $1`, id).Scan(&checkIn, &nightly, &rules.ArrivalDate, &rules.CheckoutPolicy, &rules.LateCheckoutGrace); err != nil {
 		return err
 	}
-	nights := Nights(checkIn, now, property.IST)
+	nights := StayNights(checkIn, now, rules.rules(), property.IST)
 
 	// Work out the final balance inside the transaction, before anything is committed.
 	prop, err := h.loadProperty(ctx)

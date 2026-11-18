@@ -10,12 +10,15 @@ import (
 	"image/jpeg"
 	"math/big"
 	"math/rand"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/makiuchi-d/gozxing"
 	"github.com/makiuchi-d/gozxing/qrcode"
+
+	"github.com/guestly/backend/internal/httpx"
 )
 
 // All fixtures use made-up people and numbers.
@@ -79,6 +82,40 @@ func TestParseRejectsOtherContent(t *testing.T) {
 		if d, err := ParseAadhaarQR(s); err == nil {
 			t.Errorf("%q parsed as %+v", s, d)
 		}
+	}
+}
+
+// Real QRs differ in their leading fields. Each layout must still put the name,
+// DOB and gender in the right place, and never shift the DOB into the name.
+func TestParseSecureQRLayoutVariants(t *testing.T) {
+	addr := []string{"C/O Sample Parent", "Ernakulam", "Near Temple", "12A", "Fort Kochi", "682001", "Fort Kochi", "Kerala", "Marine Road", "Kochi", "Kochi"}
+	build := func(lead ...string) []string {
+		return append(append(lead, "Test Person", "15/08/1990", "FEMALE"), addr...)
+	}
+	for name, f := range map[string][]string{
+		"no indicator":         build("234620261109101010123"),
+		"indicator":            build("3", "234620261109101010123"),
+		"version + indicator":  build("V2", "3", "234620261109101010123"),
+		"unknown extra field":  build("v3", "X", "3", "234620261109101010123"),
+		"V2 with mobile last4": append(build("V2", "3", "234620261109101010123"), "1234"),
+	} {
+		d, err := secureFields(f)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		checkSecure(t, d)
+	}
+
+	// Unknown address layout: keep the person, drop the address instead of jumbling it.
+	f := append(build("3", "234620261109101010123")[:7], "Kerala", "not-a-pin")
+	d, err := secureFields(f)
+	if err != nil || d.Name != "Test Person" || d.Address != "" {
+		t.Fatalf("partial layout: %+v, %v", d, err)
+	}
+
+	// No recognisable DOB + gender pair: refuse rather than guess.
+	if _, err := secureFields([]string{"3", "2346", "15-08-1990", "Test Person", "F"}); err == nil {
+		t.Fatal("expected an error when the name position can't be confirmed")
 	}
 }
 
@@ -149,5 +186,45 @@ func TestDecodeQRNoCode(t *testing.T) {
 	blank := image.NewGray(image.Rect(0, 0, 400, 300))
 	if _, err := DecodeQR(context.Background(), blank); err == nil {
 		t.Fatal("expected no QR found")
+	}
+}
+
+func TestParseAadhaarEndpoint(t *testing.T) {
+	h := &Handler{}
+	post := func(body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", strings.NewReader(body))
+		if err := h.ParseAadhaar(w, r); err != nil {
+			httpx.WriteError(w, r, err)
+		}
+		return w
+	}
+
+	text := secureQR(t, "V2", []byte{0x01})
+	w := post(`{"text":"` + text + `"}`)
+	if w.Code != 200 {
+		t.Fatalf("status %d: %s", w.Code, w.Body)
+	}
+	var d AadhaarDetails
+	if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	checkSecure(t, d)
+
+	for _, body := range []string{`{"text":"https://example.com"}`, `{"text":""}`, `{"text":"` + strings.Repeat("1", maxQRText+1) + `"}`} {
+		if w := post(body); w.Code != 422 {
+			t.Errorf("%.40s…: status %d, want 422", body, w.Code)
+		}
+	}
+}
+
+func TestPANNumber(t *testing.T) {
+	for n, ok := range map[string]bool{"ABCPE1234F": true, "abcpe 1234f": true, "ABCDE1234F": false, "ABCP1234F": false, "": true} {
+		f := map[string]string{}
+		d := documentInput{Type: "pan", Number: n, FrontUploadID: "x"}
+		d.normalize(f, "", "IN")
+		if got := f["number"] == ""; got != ok {
+			t.Errorf("%q: valid=%v, want %v (%v)", n, got, ok, f)
+		}
 	}
 }

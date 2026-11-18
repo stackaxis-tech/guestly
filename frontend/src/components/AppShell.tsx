@@ -16,8 +16,8 @@ const allNav: { to: string; label: string; short?: string; icon: typeof Home; en
   { to: "/guests", label: "Guests", icon: Users, housekeeping: false },
   { to: "/reservations", label: "Reservations", short: "Bookings", icon: CalendarDays, housekeeping: false },
   { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false },
-  { to: "/settings", label: "Settings", icon: Settings, housekeeping: false },
 ];
+// Settings lives in the account menu, so the bottom bar stays at 5 tabs or fewer.
 
 function useNav() {
   const { user } = useAuth();
@@ -206,6 +206,16 @@ function UserMenu() {
             <p className="truncate text-sm font-semibold">{user.name}</p>
             <p className="truncate text-xs text-muted">{user.email}</p>
           </div>
+          {user.role !== "housekeeping" && (
+            <Link
+              to="/settings"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sand"
+            >
+              <Settings className="size-4" aria-hidden />
+              Settings
+            </Link>
+          )}
           <Button variant="ghost" size="sm" className="w-full justify-start" icon={<LogOut className="size-4" />} onClick={logout}>
             Sign out
           </Button>

@@ -261,3 +261,92 @@ func TestBuildInvoiceDoc(t *testing.T) {
 		t.Errorf("unregistered = %+v", got.Seller)
 	}
 }
+
+func TestStayRules(t *testing.T) {
+	ist := time.FixedZone("IST", 19800)
+	at := func(s string) time.Time {
+		v, err := time.ParseInLocation("2006-01-02 15:04", s, ist)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	fixed := func(in string) StayRules {
+		return StayRules{Policy: "fixed", ArrivalDate: ArrivalNight(at(in), "06:00", ist)}
+	}
+	h24 := StayRules{Policy: "24h", Grace: time.Hour}
+
+	cases := []struct {
+		name    string
+		in, out string
+		rules   StayRules
+		want    int
+	}{
+		{"fixed: normal evening arrival", "2026-11-17 19:40", "2026-11-19 11:00", fixed("2026-11-17 19:40"), 2},
+		{"fixed: 2 AM walk-in takes the night that began", "2026-11-18 02:00", "2026-11-19 11:00", fixed("2026-11-18 02:00"), 2},
+		{"fixed: 2 AM walk-in leaving the same morning", "2026-11-18 02:00", "2026-11-18 10:00", fixed("2026-11-18 02:00"), 1},
+		{"fixed: 7 AM is past the cutoff, an early check-in", "2026-11-18 07:00", "2026-11-19 11:00", fixed("2026-11-18 07:00"), 1},
+		{"fixed: late checkout isn't an extra night", "2026-11-17 14:00", "2026-11-18 16:00", fixed("2026-11-17 14:00"), 1},
+		{"24h: exactly 24 hours", "2026-11-17 19:40", "2026-11-18 19:40", h24, 1},
+		{"24h: within the grace hour", "2026-11-17 19:40", "2026-11-18 20:30", h24, 1},
+		{"24h: past the grace starts another night", "2026-11-17 19:40", "2026-11-18 20:41", h24, 2},
+		{"24h: 2 AM arrival, 2 AM next day", "2026-11-18 02:00", "2026-11-19 02:00", h24, 1},
+		{"24h: short stay is one night", "2026-11-17 10:00", "2026-11-17 15:00", h24, 1},
+		{"legacy stays keep the old rule", "2026-11-18 02:00", "2026-11-19 11:00", StayRules{}, 1},
+	}
+	for _, c := range cases {
+		if got := StayNights(at(c.in), at(c.out), c.rules, ist); got != c.want {
+			t.Errorf("%s: %s → %s = %d nights, want %d", c.name, c.in, c.out, got, c.want)
+		}
+	}
+
+	if got := ArrivalNight(at("2026-11-18 02:00"), "00:00", ist); got != "2026-11-18" {
+		t.Errorf("cutoff 00:00 must turn the rule off, got %s", got)
+	}
+}
+
+func TestLateCheckout(t *testing.T) {
+	ist := time.FixedZone("IST", 19800)
+	at := func(s string) time.Time {
+		v, _ := time.ParseInLocation("2006-01-02 15:04", s, ist)
+		return v
+	}
+	in := at("2026-11-17 14:00")
+	r := StayRules{Policy: "fixed", ArrivalDate: "2026-11-17"}
+	for now, want := range map[string]time.Duration{
+		"2026-11-18 11:45": 0,                 // within the hour's grace
+		"2026-11-18 13:30": 150 * time.Minute, // 2½ hours past 11:00
+		"2026-11-17 18:00": 0,                 // checked in today: nothing to overstay
+	} {
+		if got := LateCheckout(at(now), r, in, "11:00", time.Hour, ist); got != want {
+			t.Errorf("%s: late %v, want %v", now, got, want)
+		}
+	}
+	if got := LateCheckout(at("2026-11-18 18:00"), StayRules{Policy: "24h"}, in, "11:00", time.Hour, ist); got != 0 {
+		t.Errorf("24h policy bills by the clock, got late %v", got)
+	}
+}
+
+func TestOccupiedRange(t *testing.T) {
+	ist := time.FixedZone("IST", 19800)
+	at := func(s string) time.Time {
+		v, _ := time.ParseInLocation("2006-01-02 15:04", s, ist)
+		return v
+	}
+	// Due out at 11:00, before the 12:00 check-in: the room is free for the 19th's arrival.
+	if from, to := occupiedRange(at("2026-11-17 19:40"), at("2026-11-19 11:00"), "12:00"); from != "2026-11-17" || to != "2026-11-19" {
+		t.Errorf("fixed: %s..%s", from, to)
+	}
+	// 24-hour guest due out at 19:40: the 19th's 12:00 arrival can't have the room.
+	if from, to := occupiedRange(at("2026-11-17 19:40"), at("2026-11-19 19:40"), "12:00"); from != "2026-11-17" || to != "2026-11-20" {
+		t.Errorf("24h: %s..%s", from, to)
+	}
+}
+
+func TestClockLabel(t *testing.T) {
+	for in, want := range map[string]string{"11:00": "11 AM", "13:30": "1:30 PM", "00:00": "12 AM", "12:00": "12 PM", "bad": "bad"} {
+		if got := clockLabel(in); got != want {
+			t.Errorf("clockLabel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

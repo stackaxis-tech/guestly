@@ -99,6 +99,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 					r.Use(desk)
 					r.Method("POST", "/uploads", h(stayH.Upload))
 					r.Method("POST", "/guests/scan-aadhaar", h(stayH.ScanAadhaar))
+					r.Method("POST", "/guests/parse-aadhaar", h(stayH.ParseAadhaar))
 					r.Method("GET", "/guests", h(stayH.SearchGuests))
 					r.Method("GET", "/guests/lookup", h(stayH.Lookup))
 					r.Method("GET", "/guests/{guestID}", h(stayH.GetGuest))

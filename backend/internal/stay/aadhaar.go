@@ -75,40 +75,60 @@ func parseSecureQR(digits string) (AadhaarDetails, error) {
 	for i, p := range parts {
 		f[i] = strings.TrimSpace(string(p))
 	}
-	// Newer QRs start with a version field such as "V2".
-	if len(f) > 0 && len(f[0]) >= 2 && f[0][0] == 'V' && digitsOnly.MatchString(f[0][1:]) {
-		f = f[1:]
+	return secureFields(f)
+}
+
+// secureFields maps Secure QR fields to details. The documented layout is
+// [version] indicator, referenceID, name, DOB, gender, care-of, district, landmark,
+// house, location, PIN, post office, state, street, sub-district, VTC, but QR
+// versions differ in the leading fields. Counting from a fixed index put the date
+// of birth in the name box, so the fields are anchored on the DOB and the gender
+// that follows it, which are easy to recognise. A layout that doesn't check out
+// returns an error: typing details is better than saving wrong ones.
+func secureFields(f []string) (AadhaarDetails, error) {
+	dob := -1
+	// The name and reference ID come before the DOB, so it's at index 2 or later.
+	for i := 2; i+1 < len(f) && i <= 6; i++ {
+		if isDOB(f[i]) && normalizeGender(f[i+1]) != "" {
+			dob = i
+			break
+		}
 	}
-	const (
-		refID = 1
-		name  = 2
-		dob   = 3
-		sex   = 4
-		dist  = 6
-		lm    = 7
-		house = 8
-		loc   = 9
-		pin   = 10
-		po    = 11
-		state = 12
-		st    = 13
-		sub   = 14
-		vtc   = 15
-	)
-	if len(f) <= vtc || f[name] == "" {
+	if dob < 0 || !looksLikeName(f[dob-1]) {
 		return AadhaarDetails{}, errNotAadhaarQR
 	}
-	d := AadhaarDetails{
-		Name:      f[name],
-		Gender:    normalizeGender(f[sex]),
-		BirthYear: birthYear(f[dob]),
-		Address:   joinAddress(f[house], f[st], f[lm], f[loc], f[vtc], f[po], f[sub], f[dist], f[state], f[pin]),
-	}
+	d := AadhaarDetails{Name: f[dob-1], Gender: normalizeGender(f[dob+1]), BirthYear: birthYear(f[dob])}
 	// The reference ID begins with the last four digits of the Aadhaar number.
-	if r := f[refID]; len(r) >= 4 && digitsOnly.MatchString(r[:4]) {
+	if r := f[dob-2]; len(r) >= 4 && digitsOnly.MatchString(r[:4]) {
 		d.Last4 = r[:4]
 	}
+	// Address fields follow care-of (dob+2). Only use them when the PIN is where
+	// it should be; otherwise the layout is unknown and the address is left blank.
+	at := func(off int) string {
+		if i := dob + off; i < len(f) {
+			return f[i]
+		}
+		return ""
+	}
+	dist, lm, house, loc, pin, po, state, st, sub, vtc := at(3), at(4), at(5), at(6), at(7), at(8), at(9), at(10), at(11), at(12)
+	if pinRe.MatchString(pin) {
+		d.Address = joinAddress(house, st, lm, loc, vtc, po, sub, dist, state, pin)
+	}
 	return d, nil
+}
+
+var (
+	pinRe   = regexp.MustCompile(`^[1-9][0-9]{5}$`)
+	dobRe   = regexp.MustCompile(`^(?:[0-9]{2}[-/.][0-9]{2}[-/.](?:19|20)[0-9]{2}|(?:19|20)[0-9]{2}(?:[-/.][0-9]{2}[-/.][0-9]{2})?)$`)
+	letters = regexp.MustCompile(`\pL`)
+)
+
+// isDOB accepts dd-mm-yyyy (with -, / or .), yyyy-mm-dd, or a bare year.
+func isDOB(s string) bool { return dobRe.MatchString(s) && birthYear(s) != nil }
+
+// looksLikeName rejects dates, numbers and single gender letters.
+func looksLikeName(s string) bool {
+	return len([]rune(s)) >= 2 && letters.MatchString(s) && !strings.ContainsAny(s, "0123456789")
 }
 
 func parseXMLQR(text string) (AadhaarDetails, error) {
@@ -296,6 +316,33 @@ func rotate90(img image.Image) image.Image {
 }
 
 const maxScanImage = 5 << 20 // 5 MB
+
+// maxQRText comfortably fits the largest QR code (about 7,100 digits).
+const maxQRText = 16 << 10
+
+// ParseAadhaar reads Aadhaar details from QR text that the app already decoded
+// on the device, so no photo is uploaded. Parsing stays here so that only the
+// last four digits of the number ever reach the client. Like ScanAadhaar, it
+// logs neither the text nor the result.
+func (h *Handler) ParseAadhaar(w http.ResponseWriter, r *http.Request) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxQRText+1024)
+	var in struct {
+		Text string `json:"text"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+	if in.Text == "" || len(in.Text) > maxQRText {
+		return httpx.Invalid(map[string]string{"text": "That isn't an Aadhaar QR code."})
+	}
+	d, err := ParseAadhaarQR(in.Text)
+	if err != nil {
+		return &httpx.Error{Status: http.StatusUnprocessableEntity, Code: "not_aadhaar_qr",
+			Message: "That QR code isn't from an Aadhaar card. Photograph the Aadhaar QR, or type the details."}
+	}
+	httpx.JSON(w, http.StatusOK, d)
+	return nil
+}
 
 // ScanAadhaar reads an Aadhaar QR from a photo. The image is handled in memory
 // only: it is never stored, and neither it nor the result is logged.
