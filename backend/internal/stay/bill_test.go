@@ -342,3 +342,11 @@ func TestOccupiedRange(t *testing.T) {
 		t.Errorf("24h: %s..%s", from, to)
 	}
 }
+
+func TestClockLabel(t *testing.T) {
+	for in, want := range map[string]string{"11:00": "11 AM", "13:30": "1:30 PM", "00:00": "12 AM", "12:00": "12 PM", "bad": "bad"} {
+		if got := clockLabel(in); got != want {
+			t.Errorf("clockLabel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

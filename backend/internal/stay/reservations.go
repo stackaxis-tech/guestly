@@ -164,18 +164,36 @@ func shortDay(s string) string {
 	return t.Format("2 Jan")
 }
 
-// roomBookedError reports a live booking overlapping [from, to), other than exclude.
-func roomBookedError(ctx context.Context, q property.Querier, propertyID, roomID, from, to, exclude string) error {
-	var guest, in, out string
-	err := q.QueryRow(ctx, `
+// bookingClash finds the first live booking overlapping [from, to), other than exclude.
+// ok is false when there is none.
+func bookingClash(ctx context.Context, q property.Querier, propertyID, roomID, from, to, exclude string) (guest, in, out string, ok bool, err error) {
+	err = q.QueryRow(ctx, `
 		SELECT guest_name, to_char(check_in, 'YYYY-MM-DD'), to_char(check_out, 'YYYY-MM-DD') FROM reservations
 		WHERE property_id = $1 AND room_id::text = $2 AND status = 'booked' AND id::text <> $5
 		  AND daterange(check_in, check_out) && daterange($3::date, $4::date)
 		ORDER BY check_in LIMIT 1`, propertyID, roomID, from, to, exclude).Scan(&guest, &in, &out)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return "", "", "", false, nil
 	}
+	return guest, in, out, err == nil, err
+}
+
+// clockLabel turns "11:00" into "11 AM" and "13:30" into "1:30 PM".
+func clockLabel(hhmm string) string {
+	t, err := time.Parse("15:04", hhmm)
 	if err != nil {
+		return hhmm
+	}
+	if t.Minute() == 0 {
+		return t.Format("3 PM")
+	}
+	return t.Format("3:04 PM")
+}
+
+// roomBookedError reports a live booking overlapping [from, to), other than exclude.
+func roomBookedError(ctx context.Context, q property.Querier, propertyID, roomID, from, to, exclude string) error {
+	guest, in, out, ok, err := bookingClash(ctx, q, propertyID, roomID, from, to, exclude)
+	if !ok {
 		return err
 	}
 	return httpx.Invalid(map[string]string{"roomId": fmt.Sprintf("This room is booked for %s, %s to %s. Choose another room.", guest, shortDay(in), shortDay(out))})

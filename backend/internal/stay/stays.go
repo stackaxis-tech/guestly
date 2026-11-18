@@ -3,6 +3,7 @@ package stay
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/mail"
@@ -778,12 +779,13 @@ func (h *Handler) UpdateStay(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	from, to := occupiedRange(time.Now(), in.ExpectedCheckOutAt, prop.CheckInTime)
-	if err := roomBookedError(ctx, tx, property.ID(ctx), roomID, from, to, ""); err != nil {
-		var apiErr *httpx.Error
-		if errors.As(err, &apiErr) && apiErr.Fields != nil {
-			return httpx.Invalid(map[string]string{"expectedCheckOutAt": apiErr.Fields["roomId"]})
-		}
+	// The room can't change here, so say how to fix it: leave earlier, or move the booking.
+	if guest, bIn, _, ok, err := bookingClash(ctx, tx, property.ID(ctx), roomID, from, to, ""); err != nil {
 		return err
+	} else if ok {
+		return httpx.Invalid(map[string]string{"expectedCheckOutAt": fmt.Sprintf(
+			"This room is booked for %s from %s. Check out by %s at %s, or move %s's booking to another room on the Reservations page.",
+			guest, shortDay(bIn), shortDay(bIn), clockLabel(prop.CheckOutTime), guest)})
 	}
 	if _, err := tx.Exec(ctx, `UPDATE stays SET expected_check_out_at=$2, nightly_rate=$3, adults=$4, children=$5, notes=$6 WHERE id::text = $1`,
 		id, in.ExpectedCheckOutAt, in.NightlyRate, in.Adults, in.Children, strings.TrimSpace(in.Notes)); err != nil {
