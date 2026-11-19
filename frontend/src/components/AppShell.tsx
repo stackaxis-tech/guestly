@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, UserCheck, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -206,6 +206,14 @@ function UserMenu() {
             <p className="truncate text-sm font-semibold">{user.name}</p>
             <p className="truncate text-xs text-muted">{user.email}</p>
           </div>
+          <Link
+            to="/profile"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sand"
+          >
+            <UserCheck className="size-4" aria-hidden />
+            Staff Profile
+          </Link>
           {user.role !== "housekeeping" && (
             <Link
               to="/settings"
@@ -236,7 +244,14 @@ function BillingBanner() {
   let text = "";
   let showSubscribe = false;
 
-  if (b.state === "expired") {
+  const usage = current?.entryUsage;
+  const isTrial = current?.subscription?.isTrial;
+
+  if (isTrial && usage && usage.exceeded) {
+    tone = "border-danger/30 bg-danger-bg text-danger";
+    text = `Free tier limit reached (${usage.total}/${usage.limit} entries used across rooms, check-ins & reservations). Move to a subscription plan to continue.`;
+    showSubscribe = true;
+  } else if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
     text = "Your free trial / Gustlog plan has expired. Subscribe to continue checking guests in.";
     showSubscribe = true;

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -48,8 +49,62 @@ type Property struct {
 	FrontDesk       FrontDesk             `json:"frontDesk"`
 	Subscription    *billing.Subscription `json:"subscription,omitempty"`
 	Billing         *billing.Status       `json:"billing,omitempty"`
+	EntryUsage      *EntryUsage           `json:"entryUsage,omitempty"`
 
 	logoKey *string
+}
+
+const FreeEntryLimit = 9
+
+type EntryUsage struct {
+	Rooms        int  `json:"rooms"`
+	Stays        int  `json:"stays"`
+	Reservations int  `json:"reservations"`
+	Total        int  `json:"total"`
+	Limit        int  `json:"limit"`
+	Exceeded     bool `json:"exceeded"`
+}
+
+func GetEntryUsage(ctx context.Context, q Querier, propertyID string) (EntryUsage, error) {
+	var u EntryUsage
+	u.Limit = FreeEntryLimit
+	err := q.QueryRow(ctx, `
+		SELECT 
+			(SELECT count(*) FROM rooms WHERE property_id = $1),
+			(SELECT count(*) FROM stays WHERE property_id = $1),
+			(SELECT count(*) FROM reservations WHERE property_id = $1)
+	`, propertyID).Scan(&u.Rooms, &u.Stays, &u.Reservations)
+	if err != nil {
+		return u, err
+	}
+	u.Total = u.Rooms + u.Stays + u.Reservations
+	u.Exceeded = u.Total >= FreeEntryLimit
+	return u, nil
+}
+
+func EnforceFreeEntryLimit(ctx context.Context, q Querier, propertyID string) error {
+	var isTrial *bool
+	var amount *int64
+	err := q.QueryRow(ctx, `SELECT is_trial, amount FROM subscriptions WHERE property_id = $1`, propertyID).Scan(&isTrial, &amount)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	// Paid subscription active
+	if isTrial != nil && !*isTrial && amount != nil && *amount > 0 {
+		return nil
+	}
+	usage, err := GetEntryUsage(ctx, q, propertyID)
+	if err != nil {
+		return err
+	}
+	if usage.Total >= FreeEntryLimit {
+		return &httpx.Error{
+			Status:  http.StatusPaymentRequired,
+			Code:    "SUBSCRIPTION_REQUIRED",
+			Message: "The first 9 entries (rooms, check-ins, and reservations) are free. After that, your account moves to the subscription plan.",
+		}
+	}
+	return nil
 }
 
 // Columns selects a property joined with its subscription; alias `p` for properties, `s` for subscriptions.
@@ -128,6 +183,11 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	for i := range out {
+		if u, err := GetEntryUsage(r.Context(), h.DB, out[i].ID); err == nil {
+			out[i].EntryUsage = &u
+		}
+	}
 	httpx.JSON(w, http.StatusOK, out)
 	return nil
 }
@@ -136,6 +196,9 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) error {
 	prop, err := Scan(h.DB.QueryRow(r.Context(), `SELECT `+Columns+From+`WHERE p.id = $1`, ID(r.Context())), h.Signer)
 	if err != nil {
 		return err
+	}
+	if u, err := GetEntryUsage(r.Context(), h.DB, prop.ID); err == nil {
+		prop.EntryUsage = &u
 	}
 	httpx.JSON(w, http.StatusOK, prop)
 	return nil
@@ -441,4 +504,283 @@ func (h *Handler) Access(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, id)))
 	})
+}
+
+// ---- Staff Attendance & Profile ----
+
+type AttendanceRecord struct {
+	ID         string     `json:"id"`
+	PropertyID string     `json:"propertyId"`
+	UserID     string     `json:"userId"`
+	StaffName  string     `json:"staffName"`
+	StaffEmail string     `json:"staffEmail"`
+	StaffPhone string     `json:"staffPhone"`
+	StaffRole  string     `json:"staffRole"`
+	Date       string     `json:"date"`
+	ClockInAt  time.Time  `json:"clockInAt"`
+	ClockOutAt *time.Time `json:"clockOutAt"`
+	Status     string     `json:"status"` // "present", "half_day", "on_leave", "absent"
+	Notes      string     `json:"notes"`
+	CreatedAt  time.Time  `json:"createdAt"`
+}
+
+type AttendanceSummary struct {
+	TotalStaff   int `json:"totalStaff"`
+	PresentToday int `json:"presentToday"`
+	TotalRecords int `json:"totalRecords"`
+}
+
+type AttendanceReport struct {
+	Records []AttendanceRecord `json:"records"`
+	Summary AttendanceSummary  `json:"summary"`
+}
+
+type StaffMember struct {
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	Email           string            `json:"email"`
+	Phone           string            `json:"phone"`
+	Role            string            `json:"role"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	AttendanceToday *AttendanceRecord `json:"attendanceToday,omitempty"`
+	DaysPresent     int               `json:"daysPresent"`
+}
+
+func (h *Handler) ListAttendance(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	userID := r.URL.Query().Get("userId")
+
+	if from == "" {
+		from = Today().AddDate(0, -1, 0).Format("2006-01-02")
+	}
+	if to == "" {
+		to = Today().Format("2006-01-02")
+	}
+
+	query := `
+		SELECT a.id, a.property_id, a.user_id, u.name, u.email, u.phone, u.role,
+		       to_char(a.date, 'YYYY-MM-DD'), a.clock_in_at, a.clock_out_at, a.status, a.notes, a.created_at
+		FROM staff_attendance a
+		JOIN users u ON u.id = a.user_id
+		WHERE a.property_id = $1 AND a.date >= $2::date AND a.date <= $3::date`
+	args := []any{propID, from, to}
+
+	if userID != "" {
+		args = append(args, userID)
+		query += fmt.Sprintf(" AND a.user_id = $%d", len(args))
+	}
+	query += " ORDER BY a.date DESC, a.clock_in_at DESC"
+
+	rows, err := h.DB.Query(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var records []AttendanceRecord
+	for rows.Next() {
+		var rec AttendanceRecord
+		if err := rows.Scan(&rec.ID, &rec.PropertyID, &rec.UserID, &rec.StaffName, &rec.StaffEmail, &rec.StaffPhone, &rec.StaffRole,
+			&rec.Date, &rec.ClockInAt, &rec.ClockOutAt, &rec.Status, &rec.Notes, &rec.CreatedAt); err != nil {
+			return err
+		}
+		records = append(records, rec)
+	}
+
+	var totalStaff, presentToday int
+	_ = h.DB.QueryRow(ctx, `
+		SELECT 
+			(SELECT count(*) FROM users u JOIN properties p ON p.organization_id = u.organization_id WHERE p.id = $1),
+			(SELECT count(*) FROM staff_attendance WHERE property_id = $1 AND date = (now() AT TIME ZONE 'Asia/Kolkata')::date AND status = 'present')
+	`, propID).Scan(&totalStaff, &presentToday)
+
+	httpx.JSON(w, http.StatusOK, AttendanceReport{
+		Records: records,
+		Summary: AttendanceSummary{
+			TotalStaff:   totalStaff,
+			PresentToday: presentToday,
+			TotalRecords: len(records),
+		},
+	})
+	return nil
+}
+
+type attendanceInput struct {
+	UserID string `json:"userId"`
+	Date   string `json:"date"`
+	Status string `json:"status"`
+	Notes  string `json:"notes"`
+	Action string `json:"action"` // "clock_in", "clock_out"
+}
+
+func (h *Handler) RecordAttendance(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+	p := auth.FromContext(ctx)
+
+	var in attendanceInput
+	_ = httpx.Decode(r, &in)
+
+	targetUserID := in.UserID
+	if targetUserID == "" {
+		targetUserID = p.UserID
+	}
+	dateStr := in.Date
+	if dateStr == "" {
+		dateStr = Today().Format("2006-01-02")
+	}
+	status := in.Status
+	if status == "" {
+		status = "present"
+	}
+
+	var rec AttendanceRecord
+	err := h.DB.QueryRow(ctx, `
+		INSERT INTO staff_attendance (property_id, user_id, date, clock_in_at, status, notes)
+		VALUES ($1, $2, $3::date, now(), $4, $5)
+		ON CONFLICT (property_id, user_id, date) DO UPDATE 
+		SET status = EXCLUDED.status, notes = CASE WHEN EXCLUDED.notes <> '' THEN EXCLUDED.notes ELSE staff_attendance.notes END, updated_at = now()
+		RETURNING id, property_id, user_id, to_char(date, 'YYYY-MM-DD'), clock_in_at, clock_out_at, status, notes, created_at`,
+		propID, targetUserID, dateStr, status, in.Notes).Scan(
+		&rec.ID, &rec.PropertyID, &rec.UserID, &rec.Date, &rec.ClockInAt, &rec.ClockOutAt, &rec.Status, &rec.Notes, &rec.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	_ = h.DB.QueryRow(ctx, `SELECT name, email, phone, role FROM users WHERE id = $1`, rec.UserID).Scan(
+		&rec.StaffName, &rec.StaffEmail, &rec.StaffPhone, &rec.StaffRole)
+
+	httpx.JSON(w, http.StatusOK, rec)
+	return nil
+}
+
+func (h *Handler) UpdateAttendance(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+	attID := chi.URLParam(r, "attendanceID")
+
+	var in attendanceInput
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+
+	var clockOutExpr string
+	if in.Action == "clock_out" {
+		clockOutExpr = ", clock_out_at = now()"
+	}
+
+	var rec AttendanceRecord
+	err := h.DB.QueryRow(ctx, fmt.Sprintf(`
+		UPDATE staff_attendance
+		SET status = coalesce(nullif($2, ''), status),
+		    notes = coalesce(nullif($3, ''), notes),
+		    updated_at = now() %s
+		WHERE id::text = $1 AND property_id = $4
+		RETURNING id, property_id, user_id, to_char(date, 'YYYY-MM-DD'), clock_in_at, clock_out_at, status, notes, created_at`, clockOutExpr),
+		attID, in.Status, in.Notes, propID).Scan(
+		&rec.ID, &rec.PropertyID, &rec.UserID, &rec.Date, &rec.ClockInAt, &rec.ClockOutAt, &rec.Status, &rec.Notes, &rec.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return httpx.NotFound("Attendance record not found.")
+	}
+	if err != nil {
+		return err
+	}
+
+	_ = h.DB.QueryRow(ctx, `SELECT name, email, phone, role FROM users WHERE id = $1`, rec.UserID).Scan(
+		&rec.StaffName, &rec.StaffEmail, &rec.StaffPhone, &rec.StaffRole)
+
+	httpx.JSON(w, http.StatusOK, rec)
+	return nil
+}
+
+func (h *Handler) ListStaff(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+
+	rows, err := h.DB.Query(ctx, `
+		SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+		       (SELECT count(*) FROM staff_attendance WHERE user_id = u.id AND property_id = $1 AND status = 'present') as days_present
+		FROM users u
+		JOIN properties p ON p.organization_id = u.organization_id
+		WHERE p.id = $1
+		ORDER BY u.name`, propID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var staff []StaffMember
+	for rows.Next() {
+		var s StaffMember
+		if err := rows.Scan(&s.ID, &s.Name, &s.Email, &s.Phone, &s.Role, &s.CreatedAt, &s.DaysPresent); err != nil {
+			return err
+		}
+		var att AttendanceRecord
+		err := h.DB.QueryRow(ctx, `
+			SELECT id, property_id, user_id, to_char(date, 'YYYY-MM-DD'), clock_in_at, clock_out_at, status, notes, created_at
+			FROM staff_attendance
+			WHERE property_id = $1 AND user_id = $2 AND date = (now() AT TIME ZONE 'Asia/Kolkata')::date`, propID, s.ID).Scan(
+			&att.ID, &att.PropertyID, &att.UserID, &att.Date, &att.ClockInAt, &att.ClockOutAt, &att.Status, &att.Notes, &att.CreatedAt)
+		if err == nil {
+			att.StaffName, att.StaffRole = s.Name, s.Role
+			s.AttendanceToday = &att
+		}
+		staff = append(staff, s)
+	}
+
+	httpx.JSON(w, http.StatusOK, staff)
+	return nil
+}
+
+func (h *Handler) StaffProfile(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+	p := auth.FromContext(ctx)
+
+	var s StaffMember
+	err := h.DB.QueryRow(ctx, `
+		SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+		       (SELECT count(*) FROM staff_attendance WHERE user_id = u.id AND property_id = $1 AND status = 'present') as days_present
+		FROM users u WHERE u.id = $2`, propID, p.UserID).Scan(&s.ID, &s.Name, &s.Email, &s.Phone, &s.Role, &s.CreatedAt, &s.DaysPresent)
+	if err != nil {
+		return err
+	}
+
+	var att AttendanceRecord
+	err = h.DB.QueryRow(ctx, `
+		SELECT id, property_id, user_id, to_char(date, 'YYYY-MM-DD'), clock_in_at, clock_out_at, status, notes, created_at
+		FROM staff_attendance
+		WHERE property_id = $1 AND user_id = $2 AND date = (now() AT TIME ZONE 'Asia/Kolkata')::date`, propID, s.ID).Scan(
+		&att.ID, &att.PropertyID, &att.UserID, &att.Date, &att.ClockInAt, &att.ClockOutAt, &att.Status, &att.Notes, &att.CreatedAt)
+	if err == nil {
+		att.StaffName, att.StaffRole = s.Name, s.Role
+		s.AttendanceToday = &att
+	}
+
+	// Recent 30 days attendance records for this staff member
+	rows, err := h.DB.Query(ctx, `
+		SELECT id, property_id, user_id, to_char(date, 'YYYY-MM-DD'), clock_in_at, clock_out_at, status, notes, created_at
+		FROM staff_attendance
+		WHERE property_id = $1 AND user_id = $2 AND date >= (now() AT TIME ZONE 'Asia/Kolkata')::date - interval '30 days'
+		ORDER BY date DESC`, propID, s.ID)
+	var records []AttendanceRecord
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r AttendanceRecord
+			if err := rows.Scan(&r.ID, &r.PropertyID, &r.UserID, &r.Date, &r.ClockInAt, &r.ClockOutAt, &r.Status, &r.Notes, &r.CreatedAt); err == nil {
+				r.StaffName, r.StaffRole = s.Name, s.Role
+				records = append(records, r)
+			}
+		}
+	}
+
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"staff":   s,
+		"history": records,
+	})
+	return nil
 }

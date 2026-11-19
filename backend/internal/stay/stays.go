@@ -232,6 +232,9 @@ func (h *Handler) saveDocument(ctx context.Context, tx pgx.Tx, propertyID, guest
 }
 
 func (h *Handler) CheckIn(w http.ResponseWriter, r *http.Request) error {
+	if err := property.EnforceFreeEntryLimit(r.Context(), h.DB, property.ID(r.Context())); err != nil {
+		return err
+	}
 	var req checkInReq
 	if err := httpx.Decode(r, &req); err != nil {
 		return err
@@ -478,13 +481,34 @@ func (h *Handler) listStays(ctx context.Context, where string, args ...any) ([]S
 func (h *Handler) ListStays(w http.ResponseWriter, r *http.Request) error {
 	var out []StaySummary
 	var err error
-	switch r.URL.Query().Get("status") {
+	st := r.URL.Query().Get("status")
+	switch st {
 	case "", "in_house":
 		out, err = h.listStays(r.Context(), `s.status = 'in_house'`)
 	case "checked_out":
 		out, err = h.listStays(r.Context(), `s.status = 'checked_out'`)
+	case "cancelled":
+		out, err = h.listStays(r.Context(), `s.status = 'cancelled'`)
+	case "all":
+		out, err = h.listStays(r.Context(), `1=1`)
+	case "today", "today_session":
+		out, err = h.listStays(r.Context(), `(s.status = 'in_house' 
+			OR (s.status = 'checked_out' AND (s.checked_out_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)
+			OR (s.status = 'cancelled' AND ((s.cancelled_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date OR (s.check_in_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)))`)
 	default:
-		return httpx.BadRequest("status must be in_house or checked_out")
+		parts := strings.Split(st, ",")
+		conds := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "in_house" || p == "checked_out" || p == "cancelled" {
+				conds = append(conds, fmt.Sprintf("s.status = '%s'", p))
+			}
+		}
+		if len(conds) > 0 {
+			out, err = h.listStays(r.Context(), strings.Join(conds, " OR "))
+		} else {
+			return httpx.BadRequest("status must be in_house, checked_out, cancelled, all, or today")
+		}
 	}
 	if err != nil {
 		return err
@@ -1089,7 +1113,7 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) error {
 	if paid {
 		return httpx.Conflict("A payment was taken for this stay, so it can't be cancelled. Check the guest out instead.")
 	}
-	if _, err := tx.Exec(ctx, `UPDATE stays SET status='cancelled' WHERE id::text = $1`, id); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE stays SET status='cancelled', cancelled_at=now() WHERE id::text = $1`, id); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE rooms SET status='ready', updated_at=now() WHERE id = $1`, roomID); err != nil {

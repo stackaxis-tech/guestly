@@ -45,6 +45,14 @@ export type Property = {
     graceDays: number;
   };
   billing?: { state: "trial" | "active" | "grace" | "expired"; daysLeft: number; graceDaysLeft: number; readOnly: boolean };
+  entryUsage?: {
+    rooms: number;
+    stays: number;
+    reservations: number;
+    total: number;
+    limit: number;
+    exceeded: boolean;
+  };
 };
 
 const STORAGE_KEY = "guestly.propertyId";

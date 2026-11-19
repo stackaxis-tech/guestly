@@ -53,7 +53,7 @@ var messageKinds = []MessageKind{
 			"Your bill: {amount}\nView or download: {invoice_link}\n\nWe hope to see you again.",
 	},
 	{
-		Kind: "review", Title: "Review request", When: "After checkout (with reviews)",
+		Kind: "review", Title: "Review request", When: "After checkout", Available: true,
 		DefaultBody: "Hi {guest_name}, how was your stay at {hotel_name}?\n\n" +
 			"We'd love your feedback. It takes 30 seconds: {review_link}\n\nThank you!",
 	},
@@ -292,6 +292,7 @@ func (h *Handler) PreviewMessage(w http.ResponseWriter, r *http.Request) error {
 		"checkin_time":  formatClock(prop.CheckInTime),
 		"advance":       "",
 		"invoice_link":  h.invoiceLink(ctx, d.ID),
+		"review_link":   prop.GoogleReviewURL,
 	}
 	p := preview{Kind: k.Kind, Phone: d.Guest.Phone, Body: Render(t.Body, vars), OpenIn: prop.FrontDesk.WhatsAppOpenIn,
 		Enabled: t.Enabled, Consent: d.Guest.WhatsAppConsent, Warnings: []string{}}
@@ -306,6 +307,9 @@ func (h *Handler) PreviewMessage(w http.ResponseWriter, r *http.Request) error {
 	}
 	if k.Kind == "welcome" && prop.FrontDesk.WifiName == "" {
 		p.Warnings = append(p.Warnings, "Wi-Fi details aren't set up, so they're left out. Add them in Settings.")
+	}
+	if k.Kind == "review" && prop.GoogleReviewURL == "" {
+		p.Warnings = append(p.Warnings, "No Google review link is set up in Settings.")
 	}
 	httpx.JSON(w, http.StatusOK, p)
 	return nil

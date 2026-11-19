@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ArrowLeft, ChevronRight, Phone, Search, Users } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Card, EmptyState, ErrorNote, Input, PageHeader, Spinner } from "../components/ui";
 import { api } from "../lib/api";
@@ -12,22 +12,65 @@ import { DocumentView, SecureImage } from "./StayPage";
 
 const countryName = (c: string) => COUNTRIES.find(([k]) => k === c)?.[1] ?? c;
 
-export function StayRow({ s }: { s: StaySummary }) {
+export function StayRow({
+  s,
+  isCurrentSession,
+  highlight,
+}: {
+  s: StaySummary;
+  isCurrentSession?: boolean;
+  highlight?: boolean;
+}) {
   const today = new Date().toDateString();
   const dueToday = s.status === "in_house" && new Date(s.expectedCheckOutAt).toDateString() === today;
   const overdue = s.status === "in_house" && new Date(s.expectedCheckOutAt) < new Date() && !dueToday;
+  const isCancelled = s.status === "cancelled";
+
   return (
-    <Link to={`/stays/${s.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-sand/60">
-      <span className="tabular flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-sand font-display text-lg font-bold text-ink">
+    <Link
+      to={`/stays/${s.id}`}
+      className={clsx(
+        "flex items-center gap-3 px-5 py-3 transition-colors hover:bg-sand/60",
+        highlight && "bg-brand-50/40 border-l-4 border-l-brand-600",
+        isCancelled && "opacity-80 bg-sand/30",
+      )}
+    >
+      <span
+        className={clsx(
+          "tabular flex size-11 shrink-0 items-center justify-center rounded-lg border font-display text-lg font-bold",
+          highlight
+            ? "border-brand-300 bg-brand-100 text-brand-900"
+            : isCancelled
+              ? "border-line bg-sand text-muted line-through"
+              : "border-line bg-sand text-ink",
+        )}
+      >
         {s.roomNumber}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-semibold">{s.guestName}</span>
+        <span className={clsx("block truncate font-semibold", isCancelled && "line-through text-muted")}>
+          {s.guestName}
+        </span>
         <span className="block truncate text-xs text-muted">
           {s.adults + s.children} {s.adults + s.children === 1 ? "guest" : "guests"} ·{" "}
-          {s.status === "in_house" ? `out ${formatDay(s.expectedCheckOutAt)}` : `stayed ${formatDay(s.checkInAt)} – ${formatDay(s.checkedOutAt!)}`}
+          {isCancelled
+            ? "cancelled check-in"
+            : s.status === "in_house"
+              ? `out ${formatDay(s.expectedCheckOutAt)}`
+              : `stayed ${formatDay(s.checkInAt)} – ${formatDay(s.checkedOutAt!)}`}
         </span>
       </span>
+      {isCurrentSession && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-ready-bg px-2.5 py-0.5 text-xs font-semibold text-ready">
+          <span className="size-1.5 rounded-full bg-ready animate-pulse" />
+          Current session
+        </span>
+      )}
+      {isCancelled && (
+        <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger">
+          Cancelled
+        </span>
+      )}
       {dueToday && <span className="rounded-full bg-accent-50 px-2 py-0.5 text-xs font-semibold text-accent-700">Leaving today</span>}
       {overdue && <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger">Past checkout</span>}
       <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
@@ -50,9 +93,21 @@ export function GuestsPage() {
 
   const tabs = [
     { key: "in_house", label: "In-house", count: inHouse.data?.length },
-    { key: "checked_out", label: "Checked out" },
+    { key: "checked_out", label: "Checked out / History", count: past.data?.length },
     { key: "search", label: "All guests" },
   ] as const;
+
+  const pastFiltered = useMemo(() => {
+    const list = past.data ?? [];
+    if (!query) return list;
+    const lower = query.toLowerCase();
+    return list.filter(
+      (s) =>
+        s.guestName.toLowerCase().includes(lower) ||
+        s.guestPhone.includes(lower) ||
+        s.roomNumber.toLowerCase().includes(lower),
+    );
+  }, [past.data, query]);
 
   return (
     <>
@@ -75,15 +130,45 @@ export function GuestsPage() {
         ))}
       </div>
 
-      {tab === "search" && (
+      {(tab === "search" || tab === "checked_out") && (
         <div className="relative mb-4 sm:w-80">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone number" className="pl-9" aria-label="Search guests" autoFocus />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={tab === "checked_out" ? "Search history by name, phone, or room" : "Name or phone number"}
+            className="pl-9"
+            aria-label="Search guests"
+          />
         </div>
       )}
 
-      {tab !== "search" ? (
-        <StayList q={tab === "in_house" ? inHouse : past} empty={tab === "in_house" ? "No one is checked in right now." : "No checkouts yet."} />
+      {tab === "in_house" ? (
+        <StayList q={inHouse} empty="No one is checked in right now." />
+      ) : tab === "checked_out" ? (
+        past.isLoading ? (
+          <Spinner />
+        ) : past.error ? (
+          <ErrorNote message={past.error.message} />
+        ) : pastFiltered.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={<Users className="size-6" />}
+              title={query ? "No guest history matches" : "No checkouts yet"}
+              body={query ? "Try searching with a different name, room number, or phone." : "Guest history appears here after checkouts."}
+            />
+          </Card>
+        ) : (
+          <Card className="overflow-hidden">
+            <ul className="divide-y divide-line">
+              {pastFiltered.map((s: StaySummary) => (
+                <li key={s.id}>
+                  <StayRow s={s} />
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )
       ) : search.isLoading ? (
         <Spinner />
       ) : search.error ? (

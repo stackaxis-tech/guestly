@@ -25,6 +25,7 @@ import { PublicReceiptPage } from "./pages/ReceiptPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { TodayPage } from "./pages/TodayPage";
 import { BillingPage } from "./pages/BillingPage";
+import { StaffProfilePage } from "./pages/StaffProfilePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +74,7 @@ function HotelApp() {
           <Route path="guests" element={<GuestsPage />} />
           <Route path="guests/:guestId" element={<GuestDetailPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="profile" element={<StaffProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="billing" element={<BillingPage />} />
         </Route>

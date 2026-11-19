@@ -195,9 +195,9 @@ function ScanNote({ scan, onUseScanned }: { scan: ScanState; onUseScanned: () =>
   }
   const expired = scan.details.expiry && scan.details.expiry < hotelToday();
   return (
-    <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800" role="status">
+    <div className="rounded-lg bg-ready-bg/70 border border-ready/20 px-3.5 py-2.5 text-sm text-ready" role="status">
       <p className="flex items-center gap-2 font-medium">
-        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Filled from the {label}. Please check the details.
+        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Details extracted from {label} and auto-populated. Please review and correct any details below if needed.
       </p>
       {expired && <p className="mt-1 font-semibold text-danger">This passport expired on {dayLabel(scan.details.expiry)}.</p>}
       {scan.conflicts.length > 0 && (
@@ -761,7 +761,8 @@ export function CheckInPage() {
 
                 <PersonFields value={person} onChange={setPerson} errors={errors} prefix="guest." />
                 <CameraCapture
-                  label={found && lookup.guest?.hasPhoto ? "New guest photo (optional, a photo is on file)" : "Guest photo (recommended)"}
+                  label="Guest photo (optional)"
+                  hint="Optional: check-in can be submitted without a guest photo."
                   facing="user"
                   shape="portrait"
                   value={photo}
