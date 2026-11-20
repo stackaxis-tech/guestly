@@ -46,6 +46,14 @@ function Splash() {
 
 /* ---------- Hotel staff app ---------- */
 
+function RequireRole({ roles, children }: { roles: string[]; children: React.ReactElement }) {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 function HotelApp() {
   const { status } = useAuth();
   if (status === "loading") return <Splash />;
@@ -67,16 +75,16 @@ function HotelApp() {
         <Route element={<AppShell />}>
           <Route index element={<TodayPage />} />
           <Route path="rooms" element={<RoomsPage />} />
-          <Route path="check-in" element={<CheckInPage />} />
-          <Route path="reservations" element={<ReservationsPage />} />
-          <Route path="stays/:stayId" element={<StayPage />} />
-          <Route path="stays/:stayId/invoice" element={<InvoicePage />} />
-          <Route path="guests" element={<GuestsPage />} />
-          <Route path="guests/:guestId" element={<GuestDetailPage />} />
-          <Route path="reports" element={<ReportsPage />} />
+          <Route path="check-in" element={<RequireRole roles={["owner", "manager", "front_desk"]}><CheckInPage /></RequireRole>} />
+          <Route path="reservations" element={<RequireRole roles={["owner", "manager", "front_desk"]}><ReservationsPage /></RequireRole>} />
+          <Route path="stays/:stayId" element={<RequireRole roles={["owner", "manager", "front_desk"]}><StayPage /></RequireRole>} />
+          <Route path="stays/:stayId/invoice" element={<RequireRole roles={["owner", "manager", "front_desk"]}><InvoicePage /></RequireRole>} />
+          <Route path="guests" element={<RequireRole roles={["owner", "manager", "front_desk"]}><GuestsPage /></RequireRole>} />
+          <Route path="guests/:guestId" element={<RequireRole roles={["owner", "manager", "front_desk"]}><GuestDetailPage /></RequireRole>} />
+          <Route path="reports" element={<RequireRole roles={["owner", "manager"]}><ReportsPage /></RequireRole>} />
           <Route path="profile" element={<StaffProfilePage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="billing" element={<BillingPage />} />
+          <Route path="settings" element={<RequireRole roles={["owner", "manager"]}><SettingsPage /></RequireRole>} />
+          <Route path="billing" element={<RequireRole roles={["owner", "manager"]}><BillingPage /></RequireRole>} />
         </Route>
         {/* A signed-in user opening an invite (e.g. someone else's) is sent home. */}
         <Route path="*" element={<Navigate to="/" replace />} />

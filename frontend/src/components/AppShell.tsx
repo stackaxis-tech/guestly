@@ -214,7 +214,7 @@ function UserMenu() {
             <UserCheck className="size-4" aria-hidden />
             Staff Profile
           </Link>
-          {user.role !== "housekeeping" && (
+          {(user.role === "owner" || user.role === "manager") && (
             <Link
               to="/settings"
               onClick={() => setOpen(false)}

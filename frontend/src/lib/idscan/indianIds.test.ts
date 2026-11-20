@@ -97,6 +97,51 @@ Address : House No 5, MG Road, Kochi, Kerala 682016`;
     expect(findDL("DOB 12-03-1988 Issue 05-06-2015")).toBe("");
     expect(findDL("XY07 20150001234")).toBe("");
     expect(findDL("MH-12 2011 0012345")).toBe("MH1220110012345");
+    expect(findDL("DL No: DL-0420110012345")).toBe("DL0420110012345");
+    expect(findDL("Licence No: KA-01/2018/0001234")).toBe("KA0120180001234");
+  });
+});
+
+describe("Aadhaar OCR", () => {
+  it("reads details from card front text", () => {
+    const frontText = `Government of India
+Unique Identification Authority of India
+Rahul Kumar Sharma
+DOB: 15/08/1990
+Male
+1234 5678 9012`;
+    expect(parseIndianId("aadhaar", frontText)).toMatchObject({
+      number: "9012",
+      name: "Rahul Kumar Sharma",
+      birthYear: 1990,
+      gender: "male",
+    });
+  });
+
+  it("reads masked Aadhaar with Year of Birth", () => {
+    const text = `भारत सरकार
+GOVERNMENT OF INDIA
+Priya Mohan Nair
+Year of Birth: 1985
+Female / महिला
+XXXX XXXX 5678`;
+    expect(parseIndianId("aadhaar", text)).toMatchObject({
+      number: "5678",
+      name: "Priya Mohan Nair",
+      birthYear: 1985,
+      gender: "female",
+    });
+  });
+
+  it("reads back of Aadhaar with address", () => {
+    const backText = `Unique Identification Authority of India
+Address: S/O Mohan Nair, 12A Marine Road, Fort Kochi,
+Ernakulam, Kerala 682001
+1947`;
+    expect(parseIndianId("aadhaar", backText)).toMatchObject({
+      name: "",
+      address: "S/O Mohan Nair, 12A Marine Road, Fort Kochi, Ernakulam, Kerala 682001",
+    });
   });
 });
 

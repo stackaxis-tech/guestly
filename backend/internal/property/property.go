@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/guestly/backend/internal/auth"
 	"github.com/guestly/backend/internal/billing"
@@ -561,7 +562,7 @@ func (h *Handler) ListAttendance(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	query := `
-		SELECT a.id, a.property_id, a.user_id, u.name, u.email, u.phone, u.role,
+		SELECT a.id, a.property_id, a.user_id, u.name, u.email, coalesce(u.phone, ''), u.role,
 		       to_char(a.date, 'YYYY-MM-DD'), a.clock_in_at, a.clock_out_at, a.status, a.notes, a.created_at
 		FROM staff_attendance a
 		JOIN users u ON u.id = a.user_id
@@ -701,7 +702,7 @@ func (h *Handler) ListStaff(w http.ResponseWriter, r *http.Request) error {
 	propID := ID(ctx)
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+		SELECT u.id, u.name, u.email, coalesce(u.phone, ''), u.role, u.created_at,
 		       (SELECT count(*) FROM staff_attendance WHERE user_id = u.id AND property_id = $1 AND status = 'present') as days_present
 		FROM users u
 		JOIN properties p ON p.organization_id = u.organization_id
@@ -742,7 +743,7 @@ func (h *Handler) StaffProfile(w http.ResponseWriter, r *http.Request) error {
 
 	var s StaffMember
 	err := h.DB.QueryRow(ctx, `
-		SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+		SELECT u.id, u.name, u.email, coalesce(u.phone, ''), u.role, u.created_at,
 		       (SELECT count(*) FROM staff_attendance WHERE user_id = u.id AND property_id = $1 AND status = 'present') as days_present
 		FROM users u WHERE u.id = $2`, propID, p.UserID).Scan(&s.ID, &s.Name, &s.Email, &s.Phone, &s.Role, &s.CreatedAt, &s.DaysPresent)
 	if err != nil {
@@ -782,5 +783,226 @@ func (h *Handler) StaffProfile(w http.ResponseWriter, r *http.Request) error {
 		"staff":   s,
 		"history": records,
 	})
+	return nil
+}
+
+type CreateStaffInput struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Role     string `json:"role"`
+	Password string `json:"password"`
+}
+
+type UpdateStaffInput struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Role     string `json:"role"`
+	Password string `json:"password,omitempty"`
+}
+
+func cleanPhone(raw string) string {
+	raw = strings.TrimSpace(raw)
+	digits := ""
+	for _, c := range raw {
+		if c >= '0' && c <= '9' {
+			digits += string(c)
+		}
+	}
+	if len(digits) == 12 && strings.HasPrefix(digits, "91") {
+		return digits[2:]
+	}
+	if len(digits) == 11 && strings.HasPrefix(digits, "0") {
+		return digits[1:]
+	}
+	if len(digits) == 10 {
+		return digits
+	}
+	return raw
+}
+
+func (h *Handler) CreateStaff(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+
+	var in CreateStaffInput
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+
+	f := map[string]string{}
+	in.Name = strings.TrimSpace(in.Name)
+	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	in.Phone = cleanPhone(in.Phone)
+	in.Role = strings.TrimSpace(in.Role)
+	in.Password = strings.TrimSpace(in.Password)
+
+	if len(in.Name) < 2 || len(in.Name) > 80 {
+		f["name"] = "Staff name must be between 2 and 80 characters."
+	}
+	if in.Email == "" {
+		f["email"] = "Enter an email or login ID."
+	}
+	if in.Role != "manager" && in.Role != "front_desk" && in.Role != "housekeeping" {
+		f["role"] = "Choose a valid role: Manager, Front desk, or Housekeeping."
+	}
+	if len(in.Password) < 6 {
+		f["password"] = "Password must be at least 6 characters."
+	}
+	if len(f) > 0 {
+		return httpx.Invalid(f)
+	}
+
+	var orgID string
+	err := h.DB.QueryRow(ctx, `SELECT organization_id FROM properties WHERE id = $1`, propID).Scan(&orgID)
+	if err != nil {
+		return err
+	}
+
+	var existing string
+	err = h.DB.QueryRow(ctx, `SELECT email FROM users WHERE lower(email) = lower($1)`, in.Email).Scan(&existing)
+	if err == nil {
+		return httpx.Conflict("A staff member with this login ID or email already exists.")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	var member StaffMember
+	member.Name = in.Name
+	member.Email = in.Email
+	member.Phone = in.Phone
+	member.Role = in.Role
+	err = h.DB.QueryRow(ctx, `
+		INSERT INTO users (organization_id, name, email, phone, role, password_hash)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, created_at`,
+		orgID, in.Name, in.Email, in.Phone, in.Role, string(hash)).Scan(&member.ID, &member.CreatedAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return httpx.Conflict("A staff member with this login ID or email already exists.")
+		}
+		return err
+	}
+
+	// Add membership to this property so the staff member can access their workspace
+	_, err = h.DB.Exec(ctx, `
+		INSERT INTO property_members (property_id, user_id)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`, propID, member.ID)
+	if err != nil {
+		return err
+	}
+
+	httpx.JSON(w, http.StatusCreated, member)
+	return nil
+}
+
+func (h *Handler) UpdateStaff(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+	staffID := chi.URLParam(r, "staffID")
+
+	var in UpdateStaffInput
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+
+	var orgID string
+	err := h.DB.QueryRow(ctx, `SELECT organization_id FROM properties WHERE id = $1`, propID).Scan(&orgID)
+	if err != nil {
+		return err
+	}
+
+	var currentRole string
+	err = h.DB.QueryRow(ctx, `SELECT role FROM users WHERE id::text = $1 AND organization_id = $2`, staffID, orgID).Scan(&currentRole)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return httpx.NotFound("Staff member not found.")
+	}
+	if err != nil {
+		return err
+	}
+	if currentRole == "owner" && in.Role != "" && in.Role != "owner" {
+		return httpx.Forbidden("Cannot change the owner's role.")
+	}
+
+	var setClauses []string
+	args := []any{staffID, orgID}
+
+	if in.Name != "" {
+		args = append(args, strings.TrimSpace(in.Name))
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+	}
+	if in.Phone != "" {
+		args = append(args, cleanPhone(in.Phone))
+		setClauses = append(setClauses, fmt.Sprintf("phone = $%d", len(args)))
+	}
+	if in.Role != "" && currentRole != "owner" {
+		args = append(args, strings.TrimSpace(in.Role))
+		setClauses = append(setClauses, fmt.Sprintf("role = $%d", len(args)))
+	}
+	if in.Password != "" {
+		if len(in.Password) < 6 {
+			return httpx.Invalid(map[string]string{"password": "Password must be at least 6 characters."})
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		args = append(args, string(hash))
+		setClauses = append(setClauses, fmt.Sprintf("password_hash = $%d", len(args)))
+	}
+
+	if len(setClauses) > 0 {
+		query := fmt.Sprintf(`UPDATE users SET %s WHERE id::text = $1 AND organization_id = $2`, strings.Join(setClauses, ", "))
+		_, err = h.DB.Exec(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+	}
+
+	var s StaffMember
+	err = h.DB.QueryRow(ctx, `
+		SELECT u.id, u.name, u.email, coalesce(u.phone, ''), u.role, u.created_at,
+		       (SELECT count(*) FROM staff_attendance WHERE user_id = u.id AND property_id = $1 AND status = 'present') as days_present
+		FROM users u WHERE u.id::text = $2`, propID, staffID).Scan(&s.ID, &s.Name, &s.Email, &s.Phone, &s.Role, &s.CreatedAt, &s.DaysPresent)
+	if err != nil {
+		return err
+	}
+	httpx.JSON(w, http.StatusOK, s)
+	return nil
+}
+
+func (h *Handler) DeleteStaff(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	propID := ID(ctx)
+	staffID := chi.URLParam(r, "staffID")
+
+	var orgID string
+	err := h.DB.QueryRow(ctx, `SELECT organization_id FROM properties WHERE id = $1`, propID).Scan(&orgID)
+	if err != nil {
+		return err
+	}
+
+	var role string
+	err = h.DB.QueryRow(ctx, `SELECT role FROM users WHERE id::text = $1 AND organization_id = $2`, staffID, orgID).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return httpx.NotFound("Staff member not found.")
+	}
+	if role == "owner" {
+		return httpx.Forbidden("Cannot delete the property owner.")
+	}
+
+	_, _ = h.DB.Exec(ctx, `DELETE FROM staff_attendance WHERE user_id::text = $1`, staffID)
+	_, err = h.DB.Exec(ctx, `DELETE FROM users WHERE id::text = $1 AND organization_id = $2`, staffID, orgID)
+	if err != nil {
+		return err
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

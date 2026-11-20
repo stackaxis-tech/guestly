@@ -283,7 +283,10 @@ function DocFields({
     scanDocument(type, src, propertyId, (message) => setScan((s) => (s?.state === "reading" && s.type === type ? { ...s, message } : s)))
       .then((details) => {
         if (latest.current.type !== type) return; // ID type changed while reading
-        if (details.number && !latest.current.number.trim()) onChange({ ...latest.current, number: details.number });
+        const nextDoc = { ...latest.current };
+        if (details.number) nextDoc.number = details.number;
+        if (details.expiry && type === "passport") nextDoc.visaExpiry = details.expiry;
+        onChange(nextDoc);
         setScan({ state: "done", type, details, conflicts: onScanned(details, false) });
       })
       .catch((err: unknown) => {

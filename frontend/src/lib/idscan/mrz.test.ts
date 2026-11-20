@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkDigit, parseMRZ } from "./mrz";
+import { checkDigit, parseMRZ, parsePassportText } from "./mrz";
 
 // Made-up people and numbers only.
 function line2(num: string, nat: string, dob: string, sex: string, exp: string) {
@@ -56,5 +56,27 @@ describe("parseMRZ", () => {
     const r = parseMRZ(l2.slice(0, 2) + "7" + l2.slice(3)); // 8 → 7 has no look-alike fix
     expect(r?.number).toBe("");
     expect(r?.birthYear).toBe(1990);
+  });
+});
+
+describe("parsePassportText fallback", () => {
+  it("extracts passport details from full page text when MRZ is absent", () => {
+    const text = `REPUBLIC OF INDIA
+PASSPORT
+Passport No: Z1234567
+Given Name: RAHUL
+Surname: SHARMA
+Nationality: INDIAN
+Sex: M
+Date of Birth: 15/08/1990
+Date of Expiry: 14/08/2030`;
+    expect(parsePassportText(text)).toMatchObject({
+      number: "Z1234567",
+      name: "Rahul Sharma",
+      nationality: "IN",
+      gender: "male",
+      birthYear: 1990,
+      expiry: "2030-08-14",
+    });
   });
 });

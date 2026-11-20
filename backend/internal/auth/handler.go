@@ -245,20 +245,22 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) error {
 	var u User
 	var hash *string
 	var orgStatus string
+	loginID := strings.TrimSpace(req.Email)
+	normPhone := normalizeIndianPhone(loginID)
 	err := h.DB.QueryRow(r.Context(), `
 		SELECT u.id, u.organization_id, u.name, u.email, u.role, u.password_hash, o.status
 		FROM users u JOIN organizations o ON o.id = u.organization_id
-		WHERE lower(u.email) = lower($1)`,
-		strings.TrimSpace(req.Email)).Scan(&u.ID, &u.OrgID, &u.Name, &u.Email, &u.Role, &hash, &orgStatus)
+		WHERE lower(u.email) = lower($1) OR (u.phone IS NOT NULL AND u.phone != '' AND (u.phone = $1 OR (length($2) = 10 AND u.phone = $2)))`,
+		loginID, normPhone).Scan(&u.ID, &u.OrgID, &u.Name, &u.Email, &u.Role, &hash, &orgStatus)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	if errors.Is(err, pgx.ErrNoRows) || hash == nil {
 		_ = bcrypt.CompareHashAndPassword(DummyHash, []byte(req.Password))
-		return httpx.Unauthorized("Email or password is incorrect.")
+		return httpx.Unauthorized("Login ID or password is incorrect.")
 	}
 	if bcrypt.CompareHashAndPassword([]byte(*hash), []byte(req.Password)) != nil {
-		return httpx.Unauthorized("Email or password is incorrect.")
+		return httpx.Unauthorized("Login ID or password is incorrect.")
 	}
 	if orgStatus == "suspended" {
 		return errSuspended
