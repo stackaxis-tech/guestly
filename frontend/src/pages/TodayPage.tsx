@@ -1,10 +1,10 @@
 import clsx from "clsx";
-import { ArrowRight, LogIn, Sparkles, Star, XCircle } from "lucide-react";
+import { ArrowRight, LogIn, Sparkles, Star, UserPlus, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/ui";
 import { WhatsAppSend } from "../components/WhatsAppSend";
-import { useAuth } from "../lib/auth";
+import { canManage, useAuth } from "../lib/auth";
 import { todayLabel } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
 import { statusMeta, useRooms, type RoomStatus } from "../lib/rooms";
@@ -49,11 +49,18 @@ export function TodayPage() {
         title={`${greeting()}, ${firstName}`}
         description={`${todayLabel()} · ${property.name}`}
         actions={
-          !isHousekeeping && (
-            <Link to="/check-in">
-              <Button icon={<LogIn className="size-4" />}>New check-in</Button>
-            </Link>
-          )
+          <div className="flex items-center gap-2">
+            {canManage(user?.role) && (
+              <Link to="/staff">
+                <Button variant="secondary" icon={<UserPlus className="size-4" />}>Staff logins</Button>
+              </Link>
+            )}
+            {!isHousekeeping && (
+              <Link to="/check-in">
+                <Button icon={<LogIn className="size-4" />}>New check-in</Button>
+              </Link>
+            )}
+          </div>
         }
       />
 

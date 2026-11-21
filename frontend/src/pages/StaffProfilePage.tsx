@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowRight, Clock, LogIn, LogOut, Mail, Phone, Shield, UserCheck } from "lucide-react";
+import { ArrowRight, Clock, LogIn, LogOut, Mail, Phone, Shield, UserCheck, UserPlus } from "lucide-react";
 import { Button, Card, EmptyState, ErrorNote, PageHeader, Spinner } from "../components/ui";
 import { api } from "../lib/api";
-import { roleLabel, useAuth } from "../lib/auth";
+import { canManage, roleLabel, useAuth } from "../lib/auth";
 import { useCurrentProperty } from "../lib/property";
 import { hotelToday } from "../lib/reservations";
 import { useStaffProfile } from "../lib/reports";
@@ -60,6 +60,15 @@ export function StaffProfilePage() {
       <PageHeader
         title="Staff Profile & Attendance"
         description="Your staff account details, duty status, and verified attendance report."
+        actions={
+          canManage(user?.role) && (
+            <Link to="/staff">
+              <Button variant="secondary" icon={<UserPlus className="size-4" />}>
+                Manage all staff
+              </Button>
+            </Link>
+          )
+        }
       />
 
       {/* Staff Card & Today's Duty Status */}

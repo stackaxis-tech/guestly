@@ -26,6 +26,7 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { TodayPage } from "./pages/TodayPage";
 import { BillingPage } from "./pages/BillingPage";
 import { StaffProfilePage } from "./pages/StaffProfilePage";
+import { StaffPage } from "./pages/StaffPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +83,7 @@ function HotelApp() {
           <Route path="guests" element={<RequireRole roles={["owner", "manager", "front_desk"]}><GuestsPage /></RequireRole>} />
           <Route path="guests/:guestId" element={<RequireRole roles={["owner", "manager", "front_desk"]}><GuestDetailPage /></RequireRole>} />
           <Route path="reports" element={<RequireRole roles={["owner", "manager"]}><ReportsPage /></RequireRole>} />
+          <Route path="staff" element={<RequireRole roles={["owner", "manager"]}><StaffPage /></RequireRole>} />
           <Route path="profile" element={<StaffProfilePage />} />
           <Route path="settings" element={<RequireRole roles={["owner", "manager"]}><SettingsPage /></RequireRole>} />
           <Route path="billing" element={<RequireRole roles={["owner", "manager"]}><BillingPage /></RequireRole>} />
