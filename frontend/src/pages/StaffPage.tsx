@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Pencil, Plus, Shield } from "lucide-react";
+import clsx from "clsx";
+import { Eye, EyeOff, Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button, Card, ErrorNote, Field, Input, PageHeader, Select, Sheet, Spinner } from "../components/ui";
+import { Button, Card, ErrorNote, Field, Input, PageHeader, Sheet, Spinner } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { canManage, useAuth } from "../lib/auth";
 import { useCurrentProperty } from "../lib/property";
@@ -361,37 +362,82 @@ export function StaffSheet({
           )}
         </Field>
 
-        <Field label="Role & Access Window" error={e.role?.message}>
-          {(id, d) => (
-            <Select
-              id={id}
-              aria-describedby={d}
-              disabled={existing?.role === "owner"}
-              invalid={!!e.role}
-              {...form.register("role")}
-            >
-              {existing?.role === "owner" ? (
-                <option value="owner">Owner (Full administrative access)</option>
-              ) : (
-                <>
-                  <option value="front_desk">Front Desk (Check-in, Rooms, Guests, Reservations, Today)</option>
-                  <option value="housekeeping">Housekeeping (Rooms & Today only)</option>
-                  <option value="manager">Manager (Full operations, Settings & Reports)</option>
-                </>
-              )}
-            </Select>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[13px] font-semibold text-ink">
+            Role & Access Window
+          </label>
+          {existing?.role === "owner" ? (
+            <div className="rounded-xl border border-brand-200 bg-brand-50 p-3.5 text-xs text-brand-900">
+              <span className="font-semibold text-brand-800">Owner Account</span>
+              <p className="mt-0.5 text-muted">The property owner has full administrative access and their role cannot be changed.</p>
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {[
+                {
+                  role: "front_desk" as const,
+                  title: "Front Desk",
+                  badge: "bg-emerald-100 text-emerald-800 border-emerald-300",
+                  desc: "Check-in, Rooms, Guests, Reservations, Today Session, and Profile.",
+                  restriction: "Restricted from Settings, Reports, and Billing.",
+                },
+                {
+                  role: "housekeeping" as const,
+                  title: "Housekeeping",
+                  badge: "bg-amber-100 text-amber-800 border-amber-300",
+                  desc: "Room status/cleaning, Today Session, and Staff Profile only.",
+                  restriction: "Restricted from Check-in, Guests, Reservations, Settings, Reports, and Billing.",
+                },
+                {
+                  role: "manager" as const,
+                  title: "Manager",
+                  badge: "bg-blue-100 text-blue-800 border-blue-300",
+                  desc: "Full management access across all hotel operations, Settings, Reports, and Billing.",
+                  restriction: "Can manage team accounts and property configurations.",
+                },
+              ].map((opt) => {
+                const isSelected = selectedRole === opt.role;
+                return (
+                  <button
+                    key={opt.role}
+                    type="button"
+                    onClick={() => {
+                      form.setValue("role", opt.role, { shouldValidate: true, shouldDirty: true });
+                    }}
+                    className={clsx(
+                      "flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all",
+                      isSelected
+                        ? "border-brand-700 bg-brand-50/70 ring-2 ring-brand-700/20 shadow-xs"
+                        : "border-line bg-paper hover:border-line-strong hover:bg-sand/40",
+                    )}
+                  >
+                    <div className={clsx(
+                      "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+                      isSelected ? "border-brand-700 bg-white" : "border-line-strong bg-paper"
+                    )}>
+                      {isSelected && <span className="size-2 rounded-full bg-brand-700" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-ink">{opt.title}</span>
+                        <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-bold border", opt.badge)}>
+                          {opt.title}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-ink-soft">{opt.desc}</p>
+                      <p className="mt-0.5 text-[11px] text-muted">{opt.restriction}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
-        </Field>
-
-        {/* Role window explainer banner */}
-        <div className="rounded-lg border border-brand-200 bg-brand-50/70 p-3 text-xs text-brand-900">
-          <p className="font-semibold text-brand-800 flex items-center gap-1.5">
-            <Shield className="size-3.5 shrink-0" />
-            {roleDetails[selectedRole]?.label ?? selectedRole} Access Window
-          </p>
-          <p className="mt-1 leading-relaxed text-brand-900">
-            {roleDetails[selectedRole]?.explanation}
-          </p>
+          {e.role?.message && (
+            <p className="text-[13px] text-danger" role="alert">
+              {e.role.message}
+            </p>
+          )}
+          <input type="hidden" {...form.register("role")} />
         </div>
 
         <Field
