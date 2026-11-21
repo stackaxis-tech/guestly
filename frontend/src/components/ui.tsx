@@ -168,9 +168,9 @@ export function Disclosure({ summary, children, className }: { summary: ReactNod
 
 /* ---------- Surfaces ---------- */
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
+export function Card({ className, children, id }: { className?: string; children: ReactNode; id?: string }) {
   return (
-    <section className={clsx("rounded-[var(--radius-card)] border border-line bg-paper", className)}>
+    <section id={id} className={clsx("rounded-[var(--radius-card)] border border-line bg-paper", className)}>
       {children}
     </section>
   );

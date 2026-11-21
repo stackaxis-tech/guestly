@@ -32,7 +32,7 @@ export type RoomType = {
 };
 
 export const statusMeta: Record<RoomStatus, { label: string; text: string; bg: string; bar: string }> = {
-  ready: { label: "Ready", text: "text-ready", bg: "bg-ready-bg", bar: "bg-ready" },
+  ready: { label: "Ready to occupy", text: "text-ready", bg: "bg-ready-bg", bar: "bg-ready" },
   occupied: { label: "Occupied", text: "text-occupied", bg: "bg-occupied-bg", bar: "bg-occupied" },
   cleaning: { label: "Cleaning", text: "text-cleaning", bg: "bg-cleaning-bg", bar: "bg-accent-400" },
   maintenance: { label: "Maintenance", text: "text-maintenance", bg: "bg-maintenance-bg", bar: "bg-maintenance" },

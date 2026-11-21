@@ -137,3 +137,57 @@ export function parseMRZ(text: string): ScanResult | null {
   }
   return null;
 }
+
+/** Fallback passport text parser when MRZ is obscured or cropped. */
+export function parsePassportText(text: string): ScanResult | null {
+  const r = emptyScan();
+
+  // Standard Indian / International Passport Number: 1 uppercase letter + 7 digits
+  const passMatch = /\b([A-PR-WYZ][1-9]\d{7})\b/i.exec(text) ||
+                    /(?:Passport\s*No|Passport\s*Number)\s*[:.\-]?\s*([A-Z0-9]{8,9})/i.exec(text);
+  if (passMatch) {
+    r.number = passMatch[1]!.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  }
+
+  // Name from Given Name / Surname
+  const surnameMatch = /Surname\s*[:.\-]?\s*([A-Za-z ]+)/i.exec(text);
+  const givenMatch = /Given\s*Name[s]?\s*[:.\-]?\s*([A-Za-z ]+)/i.exec(text);
+  if (givenMatch || surnameMatch) {
+    const given = givenMatch ? givenMatch[1]!.trim() : "";
+    const surname = surnameMatch ? surnameMatch[1]!.trim() : "";
+    const full = `${given} ${surname}`.trim();
+    if (full.length >= 3) r.name = titleCase(full);
+  } else {
+    const nameMatch = /(?:Name|Full\s*Name)\s*[:.\-]?\s*([A-Za-z ]+)/i.exec(text);
+    if (nameMatch) {
+      const clean = nameMatch[1]!.replace(/[^A-Za-z ]/g, "").trim();
+      if (clean.length >= 3) r.name = titleCase(clean);
+    }
+  }
+
+  // Date of birth
+  const dobMatch = /(?:Date\s*of\s*Birth|DOB)\s*[:.\-]?\s*(\d{2})[/-](\d{2})[/-]((?:19|20)\d{2})/i.exec(text);
+  if (dobMatch) {
+    r.birthYear = Number(dobMatch[3]);
+  }
+
+  // Sex
+  const sexMatch = /(?:Sex|Gender)\s*[:.\-]?\s*([MF])/i.exec(text);
+  if (sexMatch) {
+    r.gender = sexMatch[1]!.toUpperCase() === "F" ? "female" : "male";
+  }
+
+  // Nationality
+  if (/IND|INDIAN|INDIA/i.test(text)) {
+    r.nationality = "IN";
+  }
+
+  // Expiry date
+  const expMatch = /(?:Date\s*of\s*Expiry|Expiry\s*Date|Valid\s*Until)\s*[:.\-]?\s*(\d{2})[/-](\d{2})[/-]((?:19|20)\d{2})/i.exec(text);
+  if (expMatch) {
+    r.expiry = `${expMatch[3]}-${expMatch[2]}-${expMatch[1]}`;
+  }
+
+  if (r.number || (r.name && r.birthYear)) return r;
+  return null;
+}

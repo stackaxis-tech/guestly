@@ -5,7 +5,7 @@
  */
 import { isNative } from "./platform";
 
-export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1";
+export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8085/api/v1";
 
 export class ApiError extends Error {
   status: number;

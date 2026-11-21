@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
@@ -10,7 +11,7 @@ import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 const loginSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address."),
+  email: z.string().trim().min(1, "Enter your login ID, email, or mobile number."),
   password: z.string().min(1, "Enter your password."),
 });
 
@@ -90,6 +91,7 @@ export function applyFieldErrors<T extends Record<string, unknown>>(
 function LoginForm() {
   const { login } = useAuth();
   const [formError, setFormError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { register, handleSubmit, setError, formState } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     mode: "onTouched",
@@ -107,15 +109,43 @@ function LoginForm() {
   return (
     <>
       <h1 className="font-display text-3xl font-bold tracking-tight">Welcome back</h1>
-      <p className="mt-2 text-[15px] text-muted">Sign in to your front desk.</p>
+      <p className="mt-2 text-[15px] text-muted">Sign in to your front desk or staff workspace.</p>
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4" noValidate>
         {formError && <ErrorNote message={formError} />}
-        <Field label="Email" error={formState.errors.email?.message}>
-          {(id, d) => <Input id={id} aria-describedby={d} type="email" autoComplete="email" invalid={!!formState.errors.email} {...register("email")} />}
+        <Field label="Login ID, Email, or Phone" error={formState.errors.email?.message}>
+          {(id, d) => (
+            <Input
+              id={id}
+              aria-describedby={d}
+              type="text"
+              autoComplete="username"
+              placeholder="e.g. staff.desk, 9876543210, or email"
+              invalid={!!formState.errors.email}
+              {...register("email")}
+            />
+          )}
         </Field>
         <Field label="Password" error={formState.errors.password?.message}>
           {(id, d) => (
-            <Input id={id} aria-describedby={d} type="password" autoComplete="current-password" invalid={!!formState.errors.password} {...register("password")} />
+            <div className="relative">
+              <Input
+                id={id}
+                aria-describedby={d}
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                className="pr-10"
+                invalid={!!formState.errors.password}
+                {...register("password")}
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink focus:outline-none"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           )}
         </Field>
         <div className="-mt-2 text-right">

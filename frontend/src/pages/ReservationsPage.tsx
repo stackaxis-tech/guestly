@@ -66,9 +66,19 @@ export function ReservationsPage() {
   const [prefill] = useState(() => readPrefill(params, today));
   const monthOf = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, 1);
   const thisMonth = () => monthOf(today);
-  const [month, setMonth] = useState(() => monthOf(prefill?.checkIn ?? today));
-  const [selected, setSelected] = useState(prefill?.checkIn ?? today);
+  const dateParam = params.get("date");
+  const initialDate = (dateParam && isoDate.test(dateParam)) ? dateParam : (prefill?.checkIn ?? today);
+  const [month, setMonth] = useState(() => monthOf(initialDate));
+  const [selected, setSelected] = useState(initialDate);
   const [editing, setEditing] = useState<Reservation | "new" | null>(prefill ? "new" : null);
+
+  const onSelectDate = (iso: string) => {
+    setSelected(iso);
+    const el = document.getElementById("selected-date-reservations");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   // Open the prefilled form once; a reload shouldn't reopen it.
   useEffect(() => {
     if (params.get("new")) setParams({}, { replace: true });
@@ -150,7 +160,7 @@ export function ReservationsPage() {
                     <button
                       key={iso}
                       type="button"
-                      onClick={() => setSelected(iso)}
+                      onClick={() => onSelectDate(iso)}
                       aria-pressed={selected === iso}
                       aria-label={`${dayLabel(iso)}, ${count} ${count === 1 ? "booking" : "bookings"}`}
                       className={clsx(
@@ -186,10 +196,15 @@ export function ReservationsPage() {
           )}
         </Card>
 
-        <Card className="self-start overflow-hidden">
-          <div className="flex items-center justify-between border-b border-line px-5 py-3">
-            <h2 className="font-semibold">{dayLabel(selected)}</h2>
-            <span className="text-sm text-muted">
+        <Card id="selected-date-reservations" className="self-start overflow-hidden border-brand-200 shadow-xs">
+          <div className="flex items-center justify-between border-b border-line bg-sand/40 px-5 py-3">
+            <div>
+              <h2 className="font-semibold text-ink">Reservations for {dayLabel(selected)}</h2>
+              <span className="text-xs text-muted">
+                {selected === today ? "Today" : selected > today ? "Upcoming date" : "Past date"}
+              </span>
+            </div>
+            <span className="text-sm font-semibold text-brand-800">
               {dayList.length} {dayList.length === 1 ? "booking" : "bookings"}
             </span>
           </div>

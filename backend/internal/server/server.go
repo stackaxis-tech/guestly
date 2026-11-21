@@ -95,6 +95,15 @@ func New(cfg config.Config, pool *pgxpool.Pool, box *secure.Box) http.Handler {
 				r.With(managers).Method("PUT", "/front-desk", h(propH.UpdateFrontDesk))
 				r.With(managers).Method("GET", "/reports", h(stayH.Report))
 
+				r.Method("GET", "/attendance", h(propH.ListAttendance))
+				r.Method("POST", "/attendance", h(propH.RecordAttendance))
+				r.Method("PUT", "/attendance/{attendanceID}", h(propH.UpdateAttendance))
+				r.Method("GET", "/staff", h(propH.ListStaff))
+				r.With(managers).Method("POST", "/staff", h(propH.CreateStaff))
+				r.With(managers).Method("PUT", "/staff/{staffID}", h(propH.UpdateStaff))
+				r.With(managers).Method("DELETE", "/staff/{staffID}", h(propH.DeleteStaff))
+				r.Method("GET", "/staff/me", h(propH.StaffProfile))
+
 				r.Group(func(r chi.Router) {
 					r.Use(desk)
 					r.Method("POST", "/uploads", h(stayH.Upload))

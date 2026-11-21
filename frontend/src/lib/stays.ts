@@ -184,7 +184,9 @@ export const docTypeLabel: Record<DocType, string> = {
   other: "Other ID",
 };
 
-export const useStays = (propertyId: string, status: "in_house" | "checked_out" = "in_house") =>
+export type StayStatusQuery = "in_house" | "checked_out" | "cancelled" | "today" | "today_session" | "all";
+
+export const useStays = (propertyId: string, status: StayStatusQuery = "in_house") =>
   useQuery({ queryKey: ["stays", propertyId, status], queryFn: () => api<StaySummary[]>(`/properties/${propertyId}/stays?status=${status}`) });
 
 export const useStay = (propertyId: string, id: string) =>

@@ -232,14 +232,18 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 }
 
 type roomInput struct {
-	Number     string `json:"number"`
-	Floor      int    `json:"floor"`
-	RoomTypeID string `json:"roomTypeId"`
-	Notes      string `json:"notes"`
+	Number           string `json:"number"`
+	Floor            int    `json:"floor"`
+	RoomTypeID       string `json:"roomTypeId"`
+	RoomType         string `json:"roomType"`          // "Standard", "Deluxe", "Suite"
+	BedConfiguration string `json:"bedConfiguration"` // "Single", "Double", "Queen", "King", "Twin", "King + Sofa Bed"
+	Notes            string `json:"notes"`
 }
 
 func (h *Handler) validateRoom(r *http.Request, in *roomInput) (map[string]string, error) {
 	in.Number = strings.TrimSpace(in.Number)
+	in.RoomType = strings.TrimSpace(in.RoomType)
+	in.BedConfiguration = strings.TrimSpace(in.BedConfiguration)
 	f := map[string]string{}
 	if in.Number == "" || len(in.Number) > 10 {
 		f["number"] = "Enter a room number (up to 10 characters)."
@@ -247,19 +251,51 @@ func (h *Handler) validateRoom(r *http.Request, in *roomInput) (map[string]strin
 	if in.Floor < -2 || in.Floor > 200 {
 		f["floor"] = "Enter a valid floor."
 	}
-	var ok bool
-	err := h.DB.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM room_types WHERE id::text=$1 AND property_id=$2)`,
-		in.RoomTypeID, property.ID(r.Context())).Scan(&ok)
-	if err != nil {
-		return nil, err
+	if in.RoomTypeID == "" && in.RoomType != "" && in.BedConfiguration != "" {
+		var tid string
+		err := h.DB.QueryRow(r.Context(), `
+			SELECT id FROM room_types 
+			WHERE property_id = $1 AND lower(name) = lower($2) AND lower(bed_type) = lower($3)
+			LIMIT 1`, property.ID(r.Context()), in.RoomType, in.BedConfiguration).Scan(&tid)
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = h.DB.QueryRow(r.Context(), `
+				INSERT INTO room_types (property_id, name, bed_type, base_rate, max_guests)
+				VALUES ($1, $2, $3, 0, 2)
+				RETURNING id`, property.ID(r.Context()), in.RoomType, in.BedConfiguration).Scan(&tid)
+		}
+		if err != nil {
+			return nil, err
+		}
+		in.RoomTypeID = tid
 	}
-	if !ok {
-		f["roomTypeId"] = "Choose a room type."
+	if in.RoomTypeID == "" {
+		if in.RoomType == "" {
+			f["roomType"] = "Choose a room type."
+		}
+		if in.BedConfiguration == "" {
+			f["bedConfiguration"] = "Choose a bed configuration."
+		}
+		if len(f) > 0 {
+			return f, nil
+		}
+	} else {
+		var ok bool
+		err := h.DB.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM room_types WHERE id::text=$1 AND property_id=$2)`,
+			in.RoomTypeID, property.ID(r.Context())).Scan(&ok)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			f["roomTypeId"] = "Choose a room type."
+		}
 	}
 	return f, nil
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
+	if err := property.EnforceFreeEntryLimit(r.Context(), h.DB, property.ID(r.Context())); err != nil {
+		return err
+	}
 	var in roomInput
 	if err := httpx.Decode(r, &in); err != nil {
 		return err
@@ -273,7 +309,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 	}
 	var id string
 	err = h.DB.QueryRow(r.Context(),
-		`INSERT INTO rooms (property_id, room_type_id, number, floor, notes) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+		`INSERT INTO rooms (property_id, room_type_id, number, floor, status, notes) VALUES ($1,$2,$3,$4,'ready',$5) RETURNING id`,
 		property.ID(r.Context()), in.RoomTypeID, in.Number, in.Floor, in.Notes).Scan(&id)
 	if isUnique(err) {
 		return httpx.Invalid(map[string]string{"number": "Room " + in.Number + " already exists."})

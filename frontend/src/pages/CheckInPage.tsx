@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, BadgeCheck, BedDouble, CalendarPlus, Clock, IdCard, Loader2, Plus, ShieldCheck, Trash2, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BadgeCheck, BedDouble, CalendarPlus, Clock, IdCard, Loader2, Plus, ShieldCheck, Sparkles, Trash2, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CameraCapture } from "../components/CameraCapture";
@@ -188,23 +188,41 @@ function ScanNote({ scan, onUseScanned }: { scan: ScanState; onUseScanned: () =>
   }
   if (scan.state === "failed") {
     return (
-      <p className="rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700" role="status">
-        {scan.message}
-      </p>
+      <div className="rounded-lg bg-accent-50/80 border border-accent-200 px-3.5 py-2.5 text-sm text-accent-800" role="status">
+        <p className="font-medium">{scan.message}</p>
+        <p className="mt-1 text-xs text-muted">You can manually type the guest details in the form above and ID number below.</p>
+      </div>
     );
   }
-  const expired = scan.details.expiry && scan.details.expiry < hotelToday();
+  const d = scan.details;
+  const expired = d.expiry && d.expiry < hotelToday();
+  const extractedList: string[] = [];
+  if (d.name) extractedList.push(`Name: ${d.name}`);
+  if (d.number) extractedList.push(`ID No: ${d.number}`);
+  if (d.birthYear) extractedList.push(`Birth Year: ${d.birthYear}`);
+  if (d.gender) extractedList.push(`Gender: ${d.gender}`);
+  if (d.address) extractedList.push(`Address: ${d.address}`);
+
   return (
-    <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800" role="status">
+    <div className="rounded-lg bg-ready-bg/70 border border-ready/20 px-3.5 py-2.5 text-sm text-ready" role="status">
       <p className="flex items-center gap-2 font-medium">
-        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Filled from the {label}. Please check the details.
+        <BadgeCheck className="size-4 shrink-0" aria-hidden /> Details extracted from {label} and auto-populated.
       </p>
-      {expired && <p className="mt-1 font-semibold text-danger">This passport expired on {dayLabel(scan.details.expiry)}.</p>}
+      {extractedList.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-ink-soft">
+          {extractedList.map((item, idx) => (
+            <span key={idx} className="rounded bg-paper px-2 py-0.5 border border-line font-medium">
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+      {expired && <p className="mt-1 font-semibold text-danger">This passport expired on {dayLabel(d.expiry)}.</p>}
       {scan.conflicts.length > 0 && (
-        <p className="mt-1">
+        <p className="mt-1.5 text-xs text-muted">
           The {label} shows a different {scan.conflicts.join(", ")}.{" "}
-          <button type="button" className="font-semibold underline" onClick={onUseScanned}>
-            Use {label} details
+          <button type="button" className="font-semibold underline text-ink hover:text-brand-700" onClick={onUseScanned}>
+            Overwrite with {label} details
           </button>
         </p>
       )}
@@ -213,11 +231,11 @@ function ScanNote({ scan, onUseScanned }: { scan: ScanState; onUseScanned: () =>
 }
 
 const scanHint: Record<DocType, string> = {
-  aadhaar: "Keep the QR code sharp to auto-fill",
-  passport: "Photo page, with the two <<< lines in view",
-  pan: "Flat, filling the frame, no glare",
-  voter_id: "Flat, filling the frame, no glare",
-  driving_licence: "Flat, filling the frame, no glare",
+  aadhaar: "Card photo or QR code to auto-fill details",
+  passport: "Photo page, with MRZ (<<< lines) in view",
+  pan: "Flat, filling the frame with name and number",
+  voter_id: "Flat, filling the frame with EPIC number",
+  driving_licence: "Front of licence with DL number and name",
   other: "Fill the frame with the card",
 };
 
@@ -283,8 +301,11 @@ function DocFields({
     scanDocument(type, src, propertyId, (message) => setScan((s) => (s?.state === "reading" && s.type === type ? { ...s, message } : s)))
       .then((details) => {
         if (latest.current.type !== type) return; // ID type changed while reading
-        if (details.number && !latest.current.number.trim()) onChange({ ...latest.current, number: details.number });
-        setScan({ state: "done", type, details, conflicts: onScanned(details, false) });
+        const nextDoc = { ...latest.current };
+        if (details.number) nextDoc.number = details.number;
+        if (details.expiry && type === "passport") nextDoc.visaExpiry = details.expiry;
+        onChange(nextDoc);
+        setScan({ state: "done", type, details, conflicts: onScanned(details, true) });
       })
       .catch((err: unknown) => {
         if (latest.current.type !== type) return;
@@ -761,7 +782,8 @@ export function CheckInPage() {
 
                 <PersonFields value={person} onChange={setPerson} errors={errors} prefix="guest." />
                 <CameraCapture
-                  label={found && lookup.guest?.hasPhoto ? "New guest photo (optional, a photo is on file)" : "Guest photo (recommended)"}
+                  label="Guest photo (optional)"
+                  hint="Optional: check-in can be submitted without a guest photo."
                   facing="user"
                   shape="portrait"
                   value={photo}
@@ -771,7 +793,16 @@ export function CheckInPage() {
               </div>
             </Section>
 
-            <Section icon={IdCard} title="ID proof" description="Scan the Aadhaar QR to fill details, or photograph the ID. Only the last 4 Aadhaar digits are kept.">
+            <Section icon={IdCard} title="ID proof" description="Scan Aadhaar, Passport, DL, Voter ID or PAN to auto-fill guest details.">
+              <div className="mb-4 rounded-xl border border-brand-200 bg-brand-50/60 p-3.5 text-xs text-brand-900">
+                <p className="font-semibold text-brand-800 flex items-center gap-1.5">
+                  <Sparkles className="size-4 shrink-0 text-brand-700" />
+                  Automatic ID Detail Extraction & Autofill
+                </p>
+                <p className="mt-1 leading-relaxed text-brand-900">
+                  Upload or photograph front and back photos of any supported ID (Aadhaar, Passport, Driving Licence, Voter ID, or PAN). Gustlog automatically extracts the document details and auto-populates the guest's <strong>Name</strong>, <strong>ID Number</strong>, <strong>Date of Birth</strong>, <strong>Gender</strong>, and <strong>Address</strong> into the form above.
+                </p>
+              </div>
               {found && (lookup.docs?.length ?? 0) > 0 && (
                 <div className="mb-5 flex flex-col gap-2">
                   {(

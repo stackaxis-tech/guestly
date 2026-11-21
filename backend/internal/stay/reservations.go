@@ -338,6 +338,9 @@ func nullableMode(in reservationInput) *string {
 }
 
 func (h *Handler) CreateReservation(w http.ResponseWriter, r *http.Request) error {
+	if err := property.EnforceFreeEntryLimit(r.Context(), h.DB, property.ID(r.Context())); err != nil {
+		return err
+	}
 	var in reservationInput
 	if err := httpx.Decode(r, &in); err != nil {
 		return err

@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { z } from "zod";
 import { Logo } from "../components/brand/Logo";
 import { PoweredBy } from "../components/PoweredBy";
@@ -77,6 +77,16 @@ function RegisterForm() {
     <>
       <h1 className="font-display text-3xl font-bold tracking-tight">Start your free trial</h1>
       <p className="mt-2 text-[15px] text-muted">30 days free. No card needed.</p>
+
+      {/* Sliding Banner below hero section */}
+      <div className="relative mt-5 overflow-hidden rounded-xl border border-brand-200 bg-brand-50/90 p-3.5 shadow-xs">
+        <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-brand-900 animate-in fade-in slide-in-from-top-2 duration-300">
+          <Sparkles className="size-4.5 shrink-0 text-brand-700 animate-pulse" aria-hidden />
+          <p className="leading-snug">
+            The first 9 entries (rooms, check-ins, and reservations) are free. After that, your account moves to the subscription plan.
+          </p>
+        </div>
+      </div>
 
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4" noValidate>
         {formError && <ErrorNote message={formError} />}

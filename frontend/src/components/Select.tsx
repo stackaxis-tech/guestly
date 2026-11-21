@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { Check, ChevronDown } from "lucide-react";
 import {
   Children,
+  Fragment,
   forwardRef,
   isValidElement,
   useCallback,
@@ -26,12 +27,19 @@ function textOf(n: ReactNode): string {
 
 function readOptions(children: ReactNode): Opt[] {
   const out: Opt[] = [];
-  Children.toArray(children).forEach((c) => {
-    if (!isValidElement(c)) return;
-    const el = c as ReactElement<{ value?: string | number; children?: ReactNode; disabled?: boolean }>;
-    const text = textOf(el.props.children);
-    out.push({ value: String(el.props.value ?? text), label: el.props.children, text, disabled: el.props.disabled });
-  });
+  const parse = (node: ReactNode) => {
+    Children.toArray(node).forEach((c) => {
+      if (!isValidElement(c)) return;
+      if (c.type === Fragment || (typeof c.type === "symbol" && String(c.type).includes("react.fragment"))) {
+        parse((c as ReactElement<{ children?: ReactNode }>).props.children);
+        return;
+      }
+      const el = c as ReactElement<{ value?: string | number; children?: ReactNode; disabled?: boolean }>;
+      const text = textOf(el.props.children);
+      out.push({ value: String(el.props.value ?? text), label: el.props.children, text, disabled: el.props.disabled });
+    });
+  };
+  parse(children);
   return out;
 }
 

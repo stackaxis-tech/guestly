@@ -24,7 +24,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Addr:           env("GUESTLY_ADDR", ":8080"),
+		Addr:           env("GUESTLY_ADDR", ":8085"),
 		DatabaseURL:    env("DATABASE_URL", "postgres://guestly:guestly@localhost:5433/guestly?sslmode=disable"),
 		JWTSecret:      []byte(env("JWT_SECRET", "dev-only-change-me-dev-only-change-me")),
 		AccessTTL:      15 * time.Minute,
@@ -32,7 +32,7 @@ func Load() Config {
 		AllowedOrigins: strings.Split(env("ALLOWED_ORIGINS", "http://localhost:5180,capacitor://localhost,https://localhost"), ","),
 		SecureCookies:  env("SECURE_COOKIES", "false") == "true",
 		AppURL:         env("APP_URL", "http://localhost:5180"),
-		PublicAPIURL:   env("PUBLIC_API_URL", "http://localhost:8080/api/v1"),
+		PublicAPIURL:   env("PUBLIC_API_URL", "http://localhost:8085/api/v1"),
 		UploadDir:      env("UPLOAD_DIR", "var/uploads"),
 		DataKey:        os.Getenv("DATA_KEY"),
 		Production:     env("GUESTLY_ENV", "development") == "production",

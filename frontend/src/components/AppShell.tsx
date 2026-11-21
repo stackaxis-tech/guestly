@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, UserCheck, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -10,31 +10,32 @@ import { roleLabel, useAuth } from "../lib/auth";
 import { initials } from "../lib/format";
 import { useProperty } from "../lib/property";
 
-const allNav: { to: string; label: string; short?: string; icon: typeof Home; end?: boolean; housekeeping: boolean; desktopOnly?: boolean }[] = [
+const allNav: { to: string; label: string; short?: string; icon: typeof Home; end?: boolean; housekeeping: boolean; desktopOnly?: boolean; managerOnly?: boolean }[] = [
   { to: "/", label: "Today", icon: Home, end: true, housekeeping: true },
   { to: "/rooms", label: "Rooms", icon: BedDouble, housekeeping: true },
   { to: "/guests", label: "Guests", icon: Users, housekeeping: false },
   { to: "/reservations", label: "Reservations", short: "Bookings", icon: CalendarDays, housekeeping: false },
-  { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false },
+  { to: "/staff", label: "Staff", short: "Staff", icon: UserCheck, housekeeping: false, managerOnly: true },
+  { to: "/reports", label: "Reports", icon: BarChart3, housekeeping: false, managerOnly: true },
 ];
-// Settings lives in the account menu, so the bottom bar stays at 5 tabs or fewer.
 
 function useNav() {
   const { user } = useAuth();
+  const isManager = user?.role === "owner" || user?.role === "manager";
   if (user?.role === "housekeeping") return allNav.filter((n) => n.housekeeping);
-  // Money reports are for owners and managers.
-  if (user?.role === "front_desk") return allNav.filter((n) => n.to !== "/reports");
+  if (!isManager) return allNav.filter((n) => !n.managerOnly);
   return allNav;
 }
 
 export function AppShell() {
   const { current, isLoading, error, refetch } = useProperty();
+  const { user } = useAuth();
   const nav = useNav();
   const { pathname } = useLocation();
 
   return (
     <div className="min-h-dvh">
-      {/* Top bar: brand, property switcher, account */}
+      {/* Top bar: brand, property switcher, management quick links, account */}
       <header className="sticky top-0 z-20 border-b border-line bg-paper/95 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-16 w-full items-center gap-3 px-4 sm:px-6 lg:h-[72px] lg:px-9">
           <div className="flex shrink-0 items-center lg:flex-1">
@@ -44,6 +45,35 @@ export function AppShell() {
           <div className="min-w-0 flex-1 sm:max-w-64 lg:max-w-60 lg:flex-none">
             <PropertySwitcher />
           </div>
+          {/* Direct header links for Owner / Manager */}
+          {user && (user.role === "owner" || user.role === "manager") && (
+            <div className="hidden items-center gap-2 sm:flex sm:ml-4">
+              <NavLink
+                to="/staff"
+                className={({ isActive }) =>
+                  clsx(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                    isActive ? "bg-brand-50 text-brand-700 border border-brand-200" : "text-muted hover:bg-sand hover:text-ink",
+                  )
+                }
+              >
+                <UserCheck className="size-3.5" aria-hidden />
+                Staff & Team
+              </NavLink>
+              <NavLink
+                to="/settings"
+                className={({ isActive }) =>
+                  clsx(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                    isActive ? "bg-brand-50 text-brand-700 border border-brand-200" : "text-muted hover:bg-sand hover:text-ink",
+                  )
+                }
+              >
+                <Settings className="size-3.5" aria-hidden />
+                Settings
+              </NavLink>
+            </div>
+          )}
           <div className="flex shrink-0 items-center justify-end sm:ml-auto lg:ml-0 lg:flex-1">
             <UserMenu />
           </div>
@@ -206,15 +236,33 @@ function UserMenu() {
             <p className="truncate text-sm font-semibold">{user.name}</p>
             <p className="truncate text-xs text-muted">{user.email}</p>
           </div>
-          {user.role !== "housekeeping" && (
-            <Link
-              to="/settings"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sand"
-            >
-              <Settings className="size-4" aria-hidden />
-              Settings
-            </Link>
+          <Link
+            to="/profile"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sand"
+          >
+            <UserCheck className="size-4" aria-hidden />
+            Staff Profile
+          </Link>
+          {(user.role === "owner" || user.role === "manager") && (
+            <>
+              <Link
+                to="/staff"
+                onClick={() => setOpen(false)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sand text-brand-700"
+              >
+                <UserCheck className="size-4 text-brand-700" aria-hidden />
+                Staff & Team Logins
+              </Link>
+              <Link
+                to="/settings"
+                onClick={() => setOpen(false)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sand"
+              >
+                <Settings className="size-4" aria-hidden />
+                Settings
+              </Link>
+            </>
           )}
           <Button variant="ghost" size="sm" className="w-full justify-start" icon={<LogOut className="size-4" />} onClick={logout}>
             Sign out
@@ -236,7 +284,14 @@ function BillingBanner() {
   let text = "";
   let showSubscribe = false;
 
-  if (b.state === "expired") {
+  const usage = current?.entryUsage;
+  const isTrial = current?.subscription?.isTrial;
+
+  if (isTrial && usage && usage.exceeded) {
+    tone = "border-danger/30 bg-danger-bg text-danger";
+    text = `Free tier limit reached (${usage.total}/${usage.limit} entries used across rooms, check-ins & reservations). Move to a subscription plan to continue.`;
+    showSubscribe = true;
+  } else if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
     text = "Your free trial / Gustlog plan has expired. Subscribe to continue checking guests in.";
     showSubscribe = true;

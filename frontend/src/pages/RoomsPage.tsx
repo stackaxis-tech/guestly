@@ -11,7 +11,7 @@ import { api, ApiError } from "../lib/api";
 import { canManage, useAuth } from "../lib/auth";
 import { rupees } from "../lib/format";
 import { useCurrentProperty } from "../lib/property";
-import { manualNext, statusMeta, useRooms, useRoomTypes, useSetRoomStatus, type Room, type RoomStatus } from "../lib/rooms";
+import { manualNext, statusMeta, useRooms, useSetRoomStatus, type Room, type RoomStatus } from "../lib/rooms";
 
 type Filter = RoomStatus | "all";
 
@@ -286,16 +286,19 @@ function RoomSheet({
   );
 }
 
+const ROOM_TYPES = ["Standard", "Deluxe", "Suite"] as const;
+const BED_CONFIGS = ["Single", "Double", "Queen", "King", "Twin", "King + Sofa Bed"] as const;
+
 const roomSchema = z.object({
   number: z.string().trim().min(1, "Enter a room number.").max(10, "Up to 10 characters."),
-  floor: z.coerce.number().int("Whole numbers only.").min(-2).max(200),
-  roomTypeId: z.string().min(1, "Choose a room type."),
-  notes: z.string().max(500),
+  floor: z.coerce.number().int("Whole numbers only.").min(-2, "Enter a valid floor.").max(200, "Enter a valid floor."),
+  roomType: z.string().min(1, "Select a room type."),
+  bedConfiguration: z.string().min(1, "Select a bed configuration."),
+  notes: z.string().max(500).optional().default(""),
 });
 type RoomValues = z.input<typeof roomSchema>;
 
 function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Room | "new" | null; onClose: () => void }) {
-  const types = useRoomTypes(propertyId);
   const qc = useQueryClient();
   const isNew = room === "new";
   const existing = room && room !== "new" ? room : null;
@@ -304,8 +307,20 @@ function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Roo
     resolver: zodResolver(roomSchema),
     mode: "onTouched",
     values: existing
-      ? { number: existing.number, floor: existing.floor, roomTypeId: existing.roomTypeId, notes: existing.notes }
-      : { number: "", floor: 1, roomTypeId: types.data?.[0]?.id ?? "", notes: "" },
+      ? {
+          number: existing.number,
+          floor: existing.floor,
+          roomType: existing.typeName || "Standard",
+          bedConfiguration: existing.bedType || "Double",
+          notes: existing.notes || "",
+        }
+      : {
+          number: "",
+          floor: 1,
+          roomType: "Standard",
+          bedConfiguration: "Double",
+          notes: "",
+        },
   });
 
   const save = useMutation({
@@ -316,6 +331,7 @@ function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Roo
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rooms", propertyId] });
       qc.invalidateQueries({ queryKey: ["room-types", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property", propertyId] });
       onClose();
     },
     onError: (err) => {
@@ -328,12 +344,12 @@ function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Roo
     mutationFn: () => api(`/properties/${propertyId}/rooms/${existing!.id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rooms", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property", propertyId] });
       onClose();
     },
   });
 
   const e = form.formState.errors;
-  const noTypes = types.data && types.data.length === 0;
   const formId = "room-form";
 
   return (
@@ -341,6 +357,7 @@ function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Roo
       open={room !== null}
       onClose={onClose}
       title={isNew ? "Add a room" : `Edit room ${existing?.number ?? ""}`}
+      description="Setup room details. Rates vary by season and are entered during billing."
       footer={
         <>
           {existing && (
@@ -355,46 +372,63 @@ function RoomForm({ propertyId, room, onClose }: { propertyId: string; room: Roo
               Remove room {existing.number}
             </Button>
           )}
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form={formId} loading={save.isPending} disabled={noTypes}>
-            {isNew ? "Add room" : "Save changes"}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form={formId} loading={save.isPending}>
+            Save
           </Button>
         </>
       }
     >
-      {noTypes ? (
-        <p className="text-sm text-muted">
-          Create a room type first in{" "}
-          <Link to="/settings" className="font-semibold text-brand-700 hover:underline" onClick={onClose}>Settings</Link>.
-        </p>
-      ) : (
-        <form id={formId} onSubmit={form.handleSubmit((v) => save.mutate(v as z.output<typeof roomSchema>))} className="flex flex-col gap-4" noValidate>
-          {(save.error && !(save.error instanceof ApiError && save.error.fields)) && <ErrorNote message={save.error.message} />}
-          {remove.error && <ErrorNote message={remove.error.message} />}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Room number" error={e.number?.message}>
-              {(id, d) => <Input id={id} aria-describedby={d} placeholder="101" invalid={!!e.number} {...form.register("number")} />}
-            </Field>
-            <Field label="Floor" error={e.floor?.message}>
-              {(id, d) => <Input id={id} aria-describedby={d} type="number" inputMode="numeric" invalid={!!e.floor} {...form.register("floor")} />}
-            </Field>
-          </div>
-          <Field label="Room type" error={e.roomTypeId?.message}>
+      <form id={formId} onSubmit={form.handleSubmit((v) => save.mutate(v as z.output<typeof roomSchema>))} className="flex flex-col gap-4" noValidate>
+        {save.error && !(save.error instanceof ApiError && save.error.fields) && <ErrorNote message={save.error.message} />}
+        {remove.error && <ErrorNote message={remove.error.message} />}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Room number" error={e.number?.message}>
+            {(id, d) => <Input id={id} aria-describedby={d} placeholder="e.g. 101" invalid={!!e.number} {...form.register("number")} />}
+          </Field>
+          <Field label="Floor" error={e.floor?.message}>
+            {(id, d) => <Input id={id} aria-describedby={d} type="number" inputMode="numeric" invalid={!!e.floor} {...form.register("floor")} />}
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Room type" error={e.roomType?.message}>
             {(id, d) => (
-              <Select id={id} aria-describedby={d} invalid={!!e.roomTypeId} {...form.register("roomTypeId")}>
-                {types.data?.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} · {t.bedType} · {rupees(t.baseRate)}
+              <Select id={id} aria-describedby={d} invalid={!!e.roomType} {...form.register("roomType")}>
+                {ROOM_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
                   </option>
                 ))}
               </Select>
             )}
           </Field>
-          <Field label="Notes" optional error={e.notes?.message}>
-            {(id, d) => <Textarea id={id} aria-describedby={d} placeholder="Sea-facing balcony, ground-floor access…" {...form.register("notes")} />}
+
+          <Field label="Bed configuration" error={e.bedConfiguration?.message}>
+            {(id, d) => (
+              <Select id={id} aria-describedby={d} invalid={!!e.bedConfiguration} {...form.register("bedConfiguration")}>
+                {BED_CONFIGS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Field>
-        </form>
-      )}
+        </div>
+
+        <div className="rounded-lg bg-ready-bg/60 p-3 text-xs text-ready border border-ready/20">
+          <p className="font-semibold">Default status: Ready to occupy</p>
+          <p className="mt-0.5 text-ink-soft">Newly created rooms start as ready to occupy immediately.</p>
+        </div>
+
+        <Field label="Notes" optional error={e.notes?.message}>
+          {(id, d) => <Textarea id={id} aria-describedby={d} placeholder="Balcony view, corner room, ground floor access…" {...form.register("notes")} />}
+        </Field>
+      </form>
     </Sheet>
   );
 }
