@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Eye, EyeOff, Pencil, Plus } from "lucide-react";
+import { Check, Eye, EyeOff, Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { canManage, useAuth } from "../lib/auth";
 import { useCurrentProperty } from "../lib/property";
 import { useStaffList, type StaffMember } from "../lib/reports";
 import { PoweredBy } from "../components/PoweredBy";
+import { RoleAvatar } from "../components/RoleAvatar";
 
 export const roleDetails: Record<string, { badge: string; label: string; windowDesc: string; explanation: string }> = {
   owner: {
@@ -50,7 +51,7 @@ export function StaffPage() {
     <div className="space-y-6">
       <PageHeader
         title="Staff & Team"
-        description="Create staff credentials with dedicated Login IDs and passwords. Non-manager staff are restricted to their assigned workspace window."
+        description="Give each person their own login. What they can open depends on their role."
         actions={
           manager && (
             <Button
@@ -64,62 +65,11 @@ export function StaffPage() {
         }
       />
 
-      {/* Role Workspace Windows Overview */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-          <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-            Front Desk Window
-          </span>
-          <p className="mt-2 text-xs font-medium text-emerald-950">
-            Check-in, Rooms, Guests, Reservations, Today Session, and Staff Profile.
-          </p>
-          <p className="mt-1 text-[11px] text-emerald-700">
-            Strictly restricted from Settings, Reports, and Billing.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-          <span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-            Housekeeping Window
-          </span>
-          <p className="mt-2 text-xs font-medium text-amber-950">
-            Room readiness, Today Session, and Staff Profile only.
-          </p>
-          <p className="mt-1 text-[11px] text-amber-700">
-            Restricted from Check-in, Guests, Reservations, Settings, Reports, and Billing.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
-          <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-            Owner & Manager Window
-          </span>
-          <p className="mt-2 text-xs font-medium text-blue-950">
-            Full administrative access across all hotel operations.
-          </p>
-          <p className="mt-1 text-[11px] text-blue-700">
-            Can configure staff logins, GST invoices, rooms, billing, and reports.
-          </p>
-        </div>
-      </div>
-
       {/* Staff Directory Card */}
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold">Active Team Members</h2>
-            <p className="mt-0.5 text-sm text-muted">Staff can sign in at /login with their Login ID or mobile phone and password.</p>
-          </div>
-          {manager && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Plus className="size-4" />}
-              onClick={() => setEditing("new")}
-            >
-              Add staff
-            </Button>
-          )}
+        <div className="border-b border-line/70 px-5 py-3.5">
+          <h2 className="text-[15px] font-semibold">Team{staff.data ? ` (${staff.data.length})` : ""}</h2>
+          <p className="text-[13px] text-muted">Each person signs in with their login ID or mobile number.</p>
         </div>
 
         {staff.isLoading ? (
@@ -131,7 +81,7 @@ export function StaffPage() {
         ) : !staff.data || staff.data.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted">No staff accounts found.</p>
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-line/70">
             {staff.data.map((s) => {
               const roleMeta = roleDetails[s.role] ?? {
                 badge: "bg-sand text-muted border-line",
@@ -140,49 +90,55 @@ export function StaffPage() {
                 explanation: "",
               };
               return (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 border border-brand-200">
-                      {s.name.slice(0, 2).toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-ink">{s.name}</span>
-                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border ${roleMeta.badge}`}>
-                          {roleMeta.label}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                        <span className="font-mono bg-sand/60 px-1.5 py-0.5 rounded text-ink-soft">
-                          Login ID: {s.email}
-                        </span>
-                        {s.phone && <span>Phone: {s.phone}</span>}
-                        {s.daysPresent > 0 && <span>{s.daysPresent} days on duty</span>}
-                      </div>
-                      <p className="mt-1.5 text-xs text-muted">{roleMeta.windowDesc}</p>
-                    </div>
+                <li key={s.id} className="flex items-center gap-3.5 px-5 py-4">
+                  <RoleAvatar role={s.role} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink">{s.name}</p>
+                    <p className="truncate text-[13px] text-ink-soft">
+                      {roleMeta.label}
+                      {s.daysPresent > 0 && <span className="text-muted">, {s.daysPresent} days on duty</span>}
+                    </p>
+                    <p className="truncate text-[13px] text-muted">
+                      {s.email}
+                      {s.phone && `, ${s.phone}`}
+                    </p>
                   </div>
-                  {manager && (
-                    <div>
-                      {s.role === "owner" ? (
-                        <span className="text-xs font-medium text-muted">Primary Owner</span>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<Pencil className="size-3.5" />}
-                          onClick={() => setEditing(s)}
-                        >
-                          Edit / Reset
-                        </Button>
-                      )}
-                    </div>
+                  {manager && s.role !== "owner" && (
+                    <button
+                      type="button"
+                      onClick={() => setEditing(s)}
+                      className="pressable flex size-10 shrink-0 items-center justify-center rounded-full text-ink-soft hover:bg-sand"
+                      aria-label={`Edit ${s.name}`}
+                    >
+                      <Pencil className="size-4" />
+                    </button>
                   )}
                 </li>
               );
             })}
           </ul>
         )}
+      </Card>
+
+      {/* What each role can open */}
+      <Card className="mt-5">
+        <h2 className="border-b border-line/70 px-5 py-3.5 text-[15px] font-semibold">What each role can open</h2>
+        <ul className="divide-y divide-line/70">
+          {[
+            { role: "manager", title: "Owner & manager", can: "Everything: guests, rooms, bookings, reports, settings, billing and staff logins." },
+            { role: "front_desk", title: "Front desk", can: "Check-in, guests, bookings, rooms and their own profile.", not: "No settings, reports or billing." },
+            { role: "housekeeping", title: "Housekeeping", can: "Room cleaning status and their own profile.", not: "No guest details or money." },
+          ].map((r) => (
+            <li key={r.role} className="flex items-start gap-3.5 px-5 py-3.5">
+              <RoleAvatar role={r.role} size="sm" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{r.title}</p>
+                <p className="text-[13px] text-ink-soft">{r.can}</p>
+                {r.not && <p className="text-[13px] text-muted">{r.not}</p>}
+              </div>
+            </li>
+          ))}
+        </ul>
       </Card>
 
       <StaffSheet
@@ -411,17 +367,18 @@ export function StaffSheet({
                         : "border-line bg-paper hover:border-line-strong hover:bg-sand/40",
                     )}
                   >
-                    <div className={clsx(
-                      "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
-                      isSelected ? "border-brand-700 bg-white" : "border-line-strong bg-paper"
-                    )}>
-                      {isSelected && <span className="size-2 rounded-full bg-brand-700" />}
-                    </div>
+                    <RoleAvatar role={opt.role} size="sm" />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold text-ink">{opt.title}</span>
-                        <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-bold border", opt.badge)}>
-                          {opt.title}
+                        <span
+                          className={clsx(
+                            "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                            isSelected ? "border-brand-700 bg-brand-700 text-white" : "border-line-strong bg-paper",
+                          )}
+                          aria-hidden
+                        >
+                          {isSelected && <Check className="size-3.5" strokeWidth={3} />}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-ink-soft">{opt.desc}</p>

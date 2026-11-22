@@ -7,9 +7,9 @@ import { Logo, LogoMark } from "./brand/Logo";
 import { Button, ErrorNote, Sheet, Spinner } from "./ui";
 import { ListGroup, ListRow } from "./mobile";
 import { PropertyLogo } from "./PropertyLogo";
+import { RoleAvatar } from "./RoleAvatar";
 import { useAlerts } from "../lib/alerts";
 import { roleLabel, useAuth } from "../lib/auth";
-import { initials } from "../lib/format";
 import { menuFor } from "../lib/menu";
 import { haptic } from "../lib/native";
 import { useCurrentProperty, useProperty } from "../lib/property";
@@ -33,7 +33,7 @@ export function AppShell() {
     <MoreContext.Provider value={() => setMoreOpen(true)}>
     <div className="min-h-dvh">
       {/* Top bar: brand, property switcher, management quick links, account */}
-      <header className="sticky top-0 z-20 border-b border-line bg-paper/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-line bg-paper pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-16 w-full items-center gap-3 px-4 sm:px-6 lg:h-[72px] lg:px-9">
           <div className="flex shrink-0 items-center lg:flex-1">
             <LogoMark size={30} className="sm:hidden" />
@@ -98,8 +98,15 @@ export function AppShell() {
       {/* Floating bottom navigation (all screen sizes). On phones the
           manager-only tabs move into the More sheet so the bar stays at five. */}
       {!hideNav(pathname) && (
+        /* Content fades out behind the floating nav instead of showing through the gap around it. */
+        <div
+          className="hide-on-keyboard pointer-events-none fixed inset-x-0 bottom-0 z-10 h-[calc(max(0.75rem,env(safe-area-inset-bottom))+6rem)] bg-linear-to-t from-ivory from-45% to-transparent"
+          aria-hidden
+        />
+      )}
+      {!hideNav(pathname) && (
         <nav
-          className="hide-on-keyboard fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
+          className="hide-on-keyboard fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper px-1 shadow-[var(--shadow-float)] lg:max-w-[680px]"
           aria-label="Main"
         >
           {nav.map(({ id, to, label, short, icon: Icon, end, nav: where }) => (
@@ -314,9 +321,7 @@ function UserMenu() {
         aria-label="Account menu"
         className="flex items-center gap-2.5 rounded-full p-0.5 text-left transition-colors hover:bg-sand lg:pr-3"
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-100 text-xs font-bold text-accent-700">
-          {initials(user.name)}
-        </span>
+        <RoleAvatar role={user.role} size="sm" />
         <span className="min-w-0 max-lg:hidden">
           <span className="block max-w-40 truncate text-sm font-semibold">{user.name}</span>
           <span className="block text-xs text-muted">{roleLabel[user.role]}</span>

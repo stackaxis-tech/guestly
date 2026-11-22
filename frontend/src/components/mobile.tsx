@@ -5,7 +5,7 @@
  */
 import clsx from "clsx";
 import { ArrowLeft, ChevronRight, FileText, MessageCircle, Search, X, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { rupees } from "../lib/format";
 import { haptic } from "../lib/native";
@@ -279,15 +279,47 @@ export function StayCard({ s, tone, onShare }: { s: StaySummary; tone: StayTone;
 /* ---------- Floating action button ---------- */
 
 /** Primary action floating above the bottom nav (phones and tablets only). */
+/** True while the page is moving down (away from the top); false at the top or when scrolling back up. */
+function useScrollingDown(threshold = 8) {
+  const [down, setDown] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 40) setDown(false);
+      else if (Math.abs(y - last) > threshold) setDown(y > last);
+      else return;
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [threshold]);
+  return down;
+}
+
+/** The screen's main action. Shrinks to its icon while scrolling down so it covers less of the list. */
 export function Fab({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
+  const compact = useScrollingDown();
   return (
     <Link
       to={to}
       onClick={() => haptic("medium")}
-      className="pressable hide-on-keyboard fixed right-4 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+5rem)] z-20 flex h-14 items-center gap-2 rounded-full bg-brand-700 pr-6 pl-5 font-semibold text-white shadow-[var(--shadow-float)] transition-colors hover:bg-brand-800 active:bg-brand-900 lg:hidden"
+      aria-label={label}
+      className={clsx(
+        "pressable hide-on-keyboard fixed right-4 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+5rem)] z-20 flex h-14 items-center overflow-hidden rounded-full bg-brand-700 font-semibold text-white shadow-[var(--shadow-float)] transition-[padding,background-color] duration-200 ease-out hover:bg-brand-800 active:bg-brand-900 motion-reduce:transition-none lg:hidden",
+        compact ? "px-[18px]" : "pr-6 pl-5",
+      )}
     >
-      <Icon className="size-5" aria-hidden />
-      {label}
+      <Icon className="size-5 shrink-0" aria-hidden />
+      <span
+        className={clsx(
+          "grid transition-[grid-template-columns,opacity,margin] duration-200 ease-out motion-reduce:transition-none",
+          compact ? "ml-0 grid-cols-[0fr] opacity-0" : "ml-2 grid-cols-[1fr] opacity-100",
+        )}
+        aria-hidden
+      >
+        <span className="overflow-hidden whitespace-nowrap">{label}</span>
+      </span>
     </Link>
   );
 }

@@ -8,6 +8,7 @@ import { useCurrentProperty } from "../lib/property";
 import { hotelToday } from "../lib/reservations";
 import { useStaffProfile } from "../lib/reports";
 import { Link } from "react-router-dom";
+import { RoleAvatar } from "../components/RoleAvatar";
 
 const dayLabel = (iso: string) =>
   new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
@@ -76,9 +77,7 @@ export function StaffProfilePage() {
         {/* Profile Card */}
         <Card className="p-5 sm:col-span-2">
           <div className="flex items-start gap-4">
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-100 text-xl font-bold text-accent-700">
-              {staff.name.slice(0, 2).toUpperCase()}
-            </span>
+            <RoleAvatar role={staff.role} size="lg" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-display text-xl font-bold text-ink">{staff.name}</h2>
