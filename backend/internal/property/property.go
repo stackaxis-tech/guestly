@@ -102,7 +102,7 @@ func EnforceFreeEntryLimit(ctx context.Context, q Querier, propertyID string) er
 		return &httpx.Error{
 			Status:  http.StatusPaymentRequired,
 			Code:    "SUBSCRIPTION_REQUIRED",
-			Message: "The first 9 entries (rooms, check-ins, and reservations) are free. After that, your account moves to the subscription plan.",
+			Message: "The first 9 entries (rooms, check-ins, and reservations) are free. From the 10th entry onwards, your account requires a subscription.",
 		}
 	}
 	return nil
@@ -581,7 +581,7 @@ func (h *Handler) ListAttendance(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer rows.Close()
 
-	var records []AttendanceRecord
+	records := []AttendanceRecord{} // never null in JSON: the page reads records.length
 	for rows.Next() {
 		var rec AttendanceRecord
 		if err := rows.Scan(&rec.ID, &rec.PropertyID, &rec.UserID, &rec.StaffName, &rec.StaffEmail, &rec.StaffPhone, &rec.StaffRole,

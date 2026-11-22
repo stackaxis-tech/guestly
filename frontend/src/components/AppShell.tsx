@@ -42,21 +42,9 @@ export function AppShell() {
           <div className="min-w-0 flex-1 sm:max-w-64 lg:max-w-60 lg:flex-none">
             <PropertySwitcher />
           </div>
-          {/* Direct header links for Owner / Manager */}
+          {/* Settings link for owner / manager on wider screens (Staff & team lives inside Settings) */}
           {user && (user.role === "owner" || user.role === "manager") && (
             <div className="hidden items-center gap-2 sm:flex sm:ml-4">
-              <NavLink
-                to="/staff"
-                className={({ isActive }) =>
-                  clsx(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                    isActive ? "bg-brand-50 text-brand-700 border border-brand-200" : "text-muted hover:bg-sand hover:text-ink",
-                  )
-                }
-              >
-                <UserCheck className="size-3.5" aria-hidden />
-                Staff & Team
-              </NavLink>
               <NavLink
                 to="/settings"
                 className={({ isActive }) =>

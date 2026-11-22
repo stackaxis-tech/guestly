@@ -11,6 +11,7 @@ import { statusMeta, useRooms, type RoomStatus } from "../lib/rooms";
 import { addDays, dayLabel, hotelToday, useReservations } from "../lib/reservations";
 import { useStays, type StaySummary } from "../lib/stays";
 import { StayRow } from "./GuestsPage";
+import { SubscriptionMarquee } from "../components/SubscriptionMarquee";
 import { MobileToday } from "./MobileToday";
 
 function greeting() {
@@ -63,6 +64,7 @@ function DesktopToday() {
 
   return (
     <>
+      <SubscriptionMarquee />
       <PageHeader
         title={`${greeting()}, ${firstName}`}
         description={`${todayLabel()} · ${property.name}`}

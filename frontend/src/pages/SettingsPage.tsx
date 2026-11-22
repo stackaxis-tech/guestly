@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BedDouble, Building2, Check, CreditCard, ImageIcon, MessageCircle, Pencil, Plus, Receipt, UserCircle, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, BedDouble, Building2, Check, CreditCard, ImageIcon, MessageCircle, Pencil, Plus, Receipt, UserCheck, UserCircle, Users, type LucideIcon } from "lucide-react";
 import { Navigate, useParams } from "react-router-dom";
 import { ListGroup, ListRow, SearchBar, SubPageHeader } from "../components/mobile";
 import { useState } from "react";
@@ -36,9 +36,16 @@ const settingsGroups: { title: string; rows: SettingsRow[] }[] = [
     ],
   },
   {
-    title: "Team & account",
+    title: "Team & reports",
     rows: [
-      { id: "staff", label: "Staff & roles", hint: "Logins and what each person can open", icon: Users, to: "/staff", keywords: "users team login" },
+      { id: "staff", label: "Staff & team", hint: "Logins and what each person can open", icon: Users, to: "/staff", keywords: "users team login roles" },
+      { id: "attendance", label: "Attendance", hint: "Who clocked in, and when", icon: UserCheck, to: "/reports?tab=attendance", keywords: "clock in duty present" },
+      { id: "reports", label: "Reports", hint: "Revenue, GST and payments", icon: BarChart3, to: "/reports", keywords: "revenue gst invoice money" },
+    ],
+  },
+  {
+    title: "Account",
+    rows: [
       { id: "plan", label: "Gustlog plan", hint: "Your subscription and renewal date", icon: CreditCard, to: "/settings/plan", keywords: "subscription billing" },
       { id: "profile-me", label: "My profile & attendance", hint: "Clock in, clock out, history", icon: UserCircle, to: "/profile" },
     ],
@@ -67,7 +74,7 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Settings" description="Property details, rooms, messages and your team." />
+      <PageHeader title="Settings" description="Property details, rooms, team and reports." />
       <SearchBar value={q} onChange={setQ} placeholder="Search settings" className="mb-5" />
       {groups.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted">No settings match "{q}".</p>

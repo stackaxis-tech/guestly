@@ -101,7 +101,7 @@ export const useAttendanceReport = (propertyId: string, from: string, to: string
     queryFn: () =>
       api<AttendanceReport>(
         `/properties/${propertyId}/attendance?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`,
-      ),
+      ).then((r) => ({ ...r, records: r.records ?? [] })), // older servers send null when there are none
     enabled: !!propertyId && from !== "" && to !== "",
     staleTime: 10_000,
   });
