@@ -3,7 +3,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { initials } from "../lib/format";
 
-/** A hotel's own logo, falling back to its initials on brand red. */
+/** A hotel's own logo, falling back to a monogram of its initials in a soft brand tint. */
 export function PropertyLogo({ name, url, size = 32, className }: { name: string; url?: string; size?: number; className?: string }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [url]);
@@ -15,14 +15,17 @@ export function PropertyLogo({ name, url, size = 32, className }: { name: string
         alt={`${name} logo`}
         style={style}
         onError={() => setBroken(true)}
-        className={clsx("shrink-0 rounded-md border border-line bg-paper object-contain", className)}
+        className={clsx("shrink-0 rounded-[28%] border border-line bg-paper object-contain", className)}
       />
     );
   }
   return (
     <span
-      style={{ ...style, fontSize: size * 0.4 }}
-      className={clsx("flex shrink-0 items-center justify-center rounded-md bg-sand font-display font-bold text-ink-soft", className)}
+      style={{ ...style, fontSize: size * 0.38 }}
+      className={clsx(
+        "flex shrink-0 items-center justify-center rounded-[28%] bg-brand-50 font-display font-bold tracking-tight text-brand-800 ring-1 ring-brand-100 ring-inset",
+        className,
+      )}
       aria-hidden
     >
       {initials(name) || "G"}

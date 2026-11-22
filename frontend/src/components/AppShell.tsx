@@ -3,7 +3,7 @@ import { AlertTriangle, Bell, ChevronDown, Check, Clock, LogOut, MapPin, MoreHor
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { Logo, LogoMark } from "./brand/Logo";
+import { Logo } from "./brand/Logo";
 import { Button, ErrorNote, Sheet, Spinner } from "./ui";
 import { ListGroup, ListRow } from "./mobile";
 import { PropertyLogo } from "./PropertyLogo";
@@ -28,16 +28,23 @@ export function AppShell() {
   const { pathname } = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => setMoreOpen(false), [pathname]);
+  const scrolled = useScrolled();
 
   return (
     <MoreContext.Provider value={() => setMoreOpen(true)}>
     <div className="min-h-dvh">
       {/* Top bar: brand, property switcher, management quick links, account */}
-      <header className="sticky top-0 z-20 border-b border-line bg-paper pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex h-16 w-full items-center gap-3 px-4 sm:px-6 lg:h-[72px] lg:px-9">
-          <div className="flex shrink-0 items-center lg:flex-1">
-            <LogoMark size={30} className="sm:hidden" />
-            <Logo size={30} className="max-sm:hidden" />
+      {/* Flat at the top of the page; lifts with a soft shadow once content scrolls under it. */}
+      <header
+        className={clsx(
+          "sticky top-0 z-20 bg-paper pt-[env(safe-area-inset-top)] transition-shadow duration-200",
+          scrolled ? "shadow-[0_1px_0_rgb(36_36_36/0.06),0_6px_16px_-10px_rgb(36_36_36/0.25)]" : "shadow-[0_1px_0_rgb(36_36_36/0.06)]",
+        )}
+      >
+        <div className="mx-auto flex h-14 w-full items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6 lg:h-[72px] lg:px-9">
+          {/* On phones the hotel is the brand; Gustlog shows on wider screens, the login and the app icon. */}
+          <div className="flex shrink-0 items-center max-sm:hidden lg:flex-1">
+            <Logo size={30} />
           </div>
           <div className="min-w-0 flex-1 sm:max-w-64 lg:max-w-60 lg:flex-none">
             <PropertySwitcher />
@@ -167,26 +174,32 @@ function PropertySwitcher() {
   const ref = useClickOutside(open, () => setOpen(false));
   if (!current) return null;
   const place = [current.city, current.state].filter(Boolean).join(", ");
+  // With a single hotel there is nothing to switch to, so the name is just a label.
+  const switchable = properties.length > 1;
 
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        className="pressable flex w-full items-center gap-2.5 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-sand"
+        onClick={() => switchable && setOpen((o) => !o)}
+        disabled={!switchable}
+        aria-expanded={switchable ? open : undefined}
+        aria-haspopup={switchable ? "listbox" : undefined}
+        className={clsx(
+          "flex max-w-full items-center gap-2.5 rounded-xl px-1 py-1 text-left transition-colors disabled:cursor-default",
+          switchable && "pressable hover:bg-sand",
+        )}
       >
-        <PropertyLogo name={current.name} url={current.logoUrl} size={32} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-display text-[15px] font-bold">{current.name}</span>
+        <PropertyLogo name={current.name} url={current.logoUrl} size={34} />
+        <span className="min-w-0">
+          <span className="block truncate font-display text-[16px] leading-tight font-bold tracking-[-0.01em]">{current.name}</span>
           {place && (
-            <span className="flex items-center gap-1 truncate text-xs text-muted">
+            <span className="flex items-center gap-1 truncate text-xs text-muted max-lg:hidden">
               <MapPin className="size-3 shrink-0" aria-hidden />
               <span className="truncate">{place}</span>
             </span>
           )}
         </span>
-        <ChevronDown className={clsx("size-4 shrink-0 text-muted transition-transform", open && "rotate-180")} aria-hidden />
+        {switchable && <ChevronDown className={clsx("size-4 shrink-0 text-muted transition-transform", open && "rotate-180")} aria-hidden />}
       </button>
       {open && (
         <div
@@ -309,7 +322,7 @@ function UserMenu() {
         aria-label="Account menu"
         className="flex items-center gap-2.5 rounded-full p-0.5 text-left transition-colors hover:bg-sand lg:pr-3"
       >
-        <RoleAvatar role={user.role} size="sm" />
+        <RoleAvatar role={user.role} size="sm" quiet />
         <span className="min-w-0 max-lg:hidden">
           <span className="block max-w-40 truncate text-sm font-semibold">{user.name}</span>
           <span className="block text-xs text-muted">{roleLabel[user.role]}</span>
@@ -421,4 +434,16 @@ function BillingBanner() {
       )}
     </div>
   );
+}
+
+/** True once the page has scrolled away from the top. */
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 4);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  return scrolled;
 }

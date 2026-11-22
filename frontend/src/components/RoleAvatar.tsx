@@ -19,12 +19,13 @@ const roleLook: Record<Role, { icon: LucideIcon; tone: string }> = {
 
 const sizes = { sm: ["size-9", "size-[18px]"], md: ["size-11", "size-5"], lg: ["size-16", "size-7"] } as const;
 
-export function RoleAvatar({ role, size = "md", className }: { role: string; size?: keyof typeof sizes; className?: string }) {
+/** `quiet` drops the role colour for places where the avatar is a button, not the subject (the top bar). */
+export function RoleAvatar({ role, size = "md", quiet, className }: { role: string; size?: keyof typeof sizes; quiet?: boolean; className?: string }) {
   const look = roleLook[role as Role] ?? { icon: UserRound, tone: "bg-sand text-ink-soft" };
   const [box, icon] = sizes[size];
   const label = roleLabel[role as Role] ?? "Staff";
   return (
-    <span role="img" aria-label={label} title={label} className={clsx("flex shrink-0 items-center justify-center rounded-full", box, look.tone, className)}>
+    <span role="img" aria-label={label} title={label} className={clsx("flex shrink-0 items-center justify-center rounded-full", box, quiet ? "bg-sand text-ink-soft ring-1 ring-line" : look.tone, className)}>
       <look.icon className={icon} strokeWidth={1.9} aria-hidden />
     </span>
   );
