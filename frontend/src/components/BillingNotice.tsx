@@ -11,7 +11,7 @@ export function BlockedNotice({ title, body }: { title: string; body: string }) 
   const { user } = useAuth();
   const manager = canManage(user?.role);
   return (
-    <div className="rounded-[var(--radius-card)] border border-line bg-paper px-5 py-8 text-center">
+    <div className="surface px-5 py-8 text-center">
       <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-danger-bg text-danger">
         <Lock className="size-5" aria-hidden />
       </span>

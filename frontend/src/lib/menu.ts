@@ -49,7 +49,8 @@ const MANAGERS: readonly Role[] = ["owner", "manager"];
 
 export const menu: MenuItem[] = [
   { id: "home", label: "Today", short: "Home", icon: Home, to: "/", end: true, roles: ALL, nav: "always" },
-  { id: "check-in", label: "Check in", icon: LogIn, to: "/check-in", roles: DESK, quick: true, primary: true, badge: (c) => c.arrivals },
+  // Check-in is the floating button on Home, so it isn't repeated as a tile.
+  { id: "check-in", label: "Check in", icon: LogIn, to: "/check-in", roles: DESK },
   { id: "booking", label: "New booking", icon: CalendarPlus, to: "/reservations?new=1", roles: DESK, quick: true },
   { id: "rooms", label: "Rooms", icon: BedDouble, to: "/rooms", roles: ALL, nav: "always", quick: true, badge: (c) => c.cleaning },
   { id: "reservations", label: "Reservations", short: "Bookings", icon: CalendarDays, to: "/reservations", roles: DESK, nav: "always" },

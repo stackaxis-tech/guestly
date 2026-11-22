@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useOpenMore } from "../components/AppShell";
 import { Fab, QuickActions, SearchBar, SegmentedTabs, StayCard, stayTone, type QuickAction } from "../components/mobile";
-import { EmptyState, Spinner } from "../components/ui";
+import { EmptyState } from "../components/ui";
 import { WhatsAppSend } from "../components/WhatsAppSend";
 import { useAuth } from "../lib/auth";
 import { rupees, todayLabel } from "../lib/format";
@@ -73,11 +73,11 @@ export function MobileToday() {
       </div>
 
       {/* Room status strip */}
-      <Link to="/rooms" className="pressable grid grid-cols-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-paper">
-        {(["ready", "occupied", "cleaning", "maintenance"] as RoomStatus[]).map((k, i) => (
-          <span key={k} className={clsx("flex flex-col items-center px-1 py-3", i > 0 && "border-l border-line")}>
-            <span className="tabular font-display text-xl font-bold">{s ? s[k] : "–"}</span>
-            <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+      <Link to="/rooms" className="pressable surface grid grid-cols-4 py-1" aria-label="Rooms by status">
+        {(["ready", "occupied", "cleaning", "maintenance"] as RoomStatus[]).map((k) => (
+          <span key={k} className="flex flex-col items-center px-1 py-3">
+            <span className="tabular font-display text-[22px] leading-none font-bold">{s ? s[k] : "–"}</span>
+            <span className="mt-1.5 flex items-center gap-1 text-[11px] text-muted">
               <span className={clsx("size-1.5 rounded-full", statusMeta[k].bar)} aria-hidden />
               {k === "ready" ? "Ready" : statusMeta[k].label}
             </span>
@@ -110,7 +110,7 @@ export function MobileToday() {
           <SearchBar value={q} onChange={setQ} placeholder="Search guest, phone or room" />
 
           {loading ? (
-            <Spinner />
+            <CardSkeletons />
           ) : tab === "arrivals" ? (
             filteredArrivals.length === 0 ? (
               <Empty tab={tab} searching={!!needle} />
@@ -153,9 +153,9 @@ export function MobileToday() {
 function ArrivalCard({ r, todayIso }: { r: Reservation; todayIso: string }) {
   const late = r.checkIn < todayIso;
   return (
-    <article className="rounded-[var(--radius-card)] border border-line bg-paper">
+    <article className="surface">
       <div className="flex items-start gap-3 px-4 pt-4 pb-3">
-        <span className="tabular flex size-12 shrink-0 items-center justify-center rounded-xl border border-line bg-sand font-display text-lg font-bold" aria-label={`Room ${r.roomNumber}`}>
+        <span className="tabular flex size-12 shrink-0 items-center justify-center rounded-xl bg-sand font-display text-lg font-bold" aria-label={`Room ${r.roomNumber}`}>
           {r.roomNumber}
         </span>
         <span className="min-w-0 flex-1">
@@ -170,7 +170,7 @@ function ArrivalCard({ r, todayIso }: { r: Reservation; todayIso: string }) {
           </span>
         </span>
       </div>
-      <div className="flex items-center gap-3 border-t border-line px-4 py-2.5">
+      <div className="flex items-center gap-3 border-t border-line/70 px-4 py-2.5">
         <div className="flex-1">
           <p className="text-[11px] text-muted">Advance paid</p>
           <p className="tabular font-display text-[15px] font-bold">{r.advanceAmount > 0 ? rupees(r.advanceAmount) : "None"}</p>
@@ -195,8 +195,31 @@ function Empty({ tab, searching }: { tab: Tab; searching: boolean }) {
     departures: ["No departures yet", "Guests due out, checked out or cancelled today will show here."],
   };
   return (
-    <div className="rounded-[var(--radius-card)] border border-line bg-paper">
+    <div className="surface">
       <EmptyState icon={<CalendarCheck className="size-5" />} title={copy[tab][0]} body={copy[tab][1]} />
+    </div>
+  );
+}
+
+/** Placeholder cards while today's guests load, so the layout doesn't jump. */
+function CardSkeletons() {
+  return (
+    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading guests">
+      {[0, 1].map((i) => (
+        <div key={i} className="surface animate-pulse px-4 py-4">
+          <div className="flex items-center gap-3">
+            <span className="size-12 rounded-xl bg-sand" />
+            <span className="flex-1 space-y-2">
+              <span className="block h-3.5 w-2/5 rounded bg-sand" />
+              <span className="block h-3 w-3/5 rounded bg-sand" />
+            </span>
+          </div>
+          <div className="mt-4 flex gap-10 border-t border-line/70 pt-3">
+            <span className="h-4 w-16 rounded bg-sand" />
+            <span className="h-4 w-16 rounded bg-sand" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -38,7 +38,7 @@ export function RoomsPage() {
     <>
       <PageHeader
         title="Rooms"
-        description="Live availability and housekeeping across the property."
+        description="Live status of every room."
         actions={manager && <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>Add room</Button>}
       />
 
@@ -67,7 +67,7 @@ export function RoomsPage() {
             {byFloor.map(([floor, list]) => (
               <section key={floor} aria-labelledby={`floor-${floor}`}>
                 <div className="mb-3 flex items-baseline justify-between">
-                  <h2 id={`floor-${floor}`} className="text-sm font-semibold tracking-wide text-ink-soft uppercase">
+                  <h2 id={`floor-${floor}`} className="font-display text-[15px] font-bold text-ink">
                     {floor === 0 ? "Ground floor" : `Floor ${floor}`}
                   </h2>
                   <span className="text-xs text-muted">{list.length} rooms</span>
@@ -128,7 +128,7 @@ function Summary({ summary, filter, onFilter }: { summary: Record<string, number
           {summary.occupied} of {summary.total} rooms · {summary.floors} floors
         </p>
       </Card>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" role="group" aria-label="Filter by status">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter by status">
         {chips.map((c) => (
           <button
             key={c.key}
@@ -154,7 +154,7 @@ function RoomTile({ room, onClick }: { room: Room; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group relative min-w-0 overflow-hidden rounded-xl border border-line bg-paper p-3.5 pl-4.5 text-left transition-colors hover:border-line-strong hover:bg-sand/40"
+      className="pressable surface group relative min-w-0 overflow-hidden p-3.5 pl-4.5 text-left transition-colors hover:bg-sand/40"
     >
       <span className={clsx("absolute inset-y-0 left-0 w-1", m.bar)} aria-hidden />
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">

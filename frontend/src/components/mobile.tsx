@@ -17,7 +17,7 @@ export function ListGroup({ title, children }: { title?: string; children: React
   return (
     <section>
       {title && <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">{title}</h2>}
-      <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius-card)] border border-line bg-paper">{children}</ul>
+      <ul className="surface divide-y divide-line/70 overflow-hidden">{children}</ul>
     </section>
   );
 }
@@ -102,8 +102,8 @@ export type QuickAction = { id: string; label: string; icon: LucideIcon; to?: st
 
 export function QuickActions({ items, title = "Quick actions" }: { items: QuickAction[]; title?: string }) {
   return (
-    <section className="rounded-[var(--radius-card)] border border-line bg-paper px-2 pt-3 pb-2">
-      <h2 className="mb-2 px-2 text-sm font-semibold">{title}</h2>
+    <section className="surface px-2 pt-3.5 pb-2.5">
+      <h2 className="mb-2.5 px-2 text-[13px] font-semibold text-muted">{title}</h2>
       <div className="grid grid-cols-4 gap-1">
         {items.map((a) => {
           const tile = (
@@ -111,7 +111,7 @@ export function QuickActions({ items, title = "Quick actions" }: { items: QuickA
               <span
                 className={clsx(
                   "relative flex size-12 items-center justify-center rounded-2xl transition-colors",
-                  a.primary ? "bg-brand-700 text-white group-hover:bg-brand-800" : "bg-brand-50 text-brand-700 group-hover:bg-brand-100",
+                  a.primary ? "bg-brand-700 text-white group-hover:bg-brand-800" : "bg-sand text-ink group-hover:bg-line/70",
                 )}
               >
                 <a.icon className="size-[22px]" strokeWidth={1.9} aria-hidden />
@@ -121,7 +121,7 @@ export function QuickActions({ items, title = "Quick actions" }: { items: QuickA
                   </span>
                 )}
               </span>
-              <span className="w-full truncate text-center text-xs font-medium text-ink-soft">{a.label}</span>
+              <span className="w-full truncate text-center text-[12px] font-medium text-ink">{a.label}</span>
             </>
           );
           const cls = "pressable group flex flex-col items-center gap-1.5 rounded-xl px-1 py-2 hover:bg-sand";
@@ -152,7 +152,7 @@ export function SegmentedTabs<T extends string>({
   options: { value: T; label: string; count?: number }[];
 }) {
   return (
-    <div className="flex gap-1 rounded-xl border border-line bg-sand p-1" role="tablist">
+    <div className="flex gap-1 rounded-xl bg-line/60 p-1" role="tablist">
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -164,12 +164,12 @@ export function SegmentedTabs<T extends string>({
             onClick={() => { if (!active) haptic(); onChange(o.value); }}
             className={clsx(
               "flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition-colors",
-              active ? "border border-brand-200 bg-paper text-brand-700" : "text-muted hover:text-ink",
+              active ? "bg-paper text-ink shadow-[0_1px_3px_rgb(36_36_36/0.12)]" : "text-ink-soft hover:text-ink",
             )}
           >
             <span className="truncate">{o.label}</span>
             {o.count !== undefined && (
-              <span className={clsx("tabular rounded-full px-1.5 text-[11px]", active ? "bg-brand-50 text-brand-700" : "bg-line text-ink-soft")}>{o.count}</span>
+              <span className={clsx("tabular text-[12px] font-medium", active ? "text-muted" : "text-muted/80")}>{o.count}</span>
             )}
           </button>
         );
@@ -182,7 +182,7 @@ export function SegmentedTabs<T extends string>({
 
 export function SearchBar({ value, onChange, placeholder, className }: { value: string; onChange: (v: string) => void; placeholder: string; className?: string }) {
   return (
-    <label className={clsx("flex h-12 items-center gap-3 rounded-xl border border-line bg-paper px-4 focus-within:border-ink/40", className)}>
+    <label className={clsx("surface flex h-12 items-center gap-3 rounded-xl px-4 focus-within:ring-2 focus-within:ring-ink/10", className)}>
       <Search className="size-5 shrink-0 text-muted" aria-hidden />
       <input
         type="search"
@@ -205,7 +205,7 @@ export function SearchBar({ value, onChange, placeholder, className }: { value: 
 export type StayTone = "in_house" | "due_out" | "overdue" | "checked_out" | "cancelled";
 
 const pill: Record<StayTone, [string, string]> = {
-  in_house: ["In-house", "bg-ready-bg text-ready"],
+  in_house: ["In-house", "bg-occupied-bg text-occupied"],
   due_out: ["Due out today", "bg-accent-50 text-accent-700"],
   overdue: ["Overdue", "bg-danger-bg text-danger"],
   checked_out: ["Checked out", "bg-maintenance-bg text-maintenance"],
@@ -231,9 +231,9 @@ export function StayCard({ s, tone, onShare }: { s: StaySummary; tone: StayTone;
       : `${shortDate(s.checkInAt)} – ${shortDate(s.expectedCheckOutAt)}`;
 
   return (
-    <article className="rounded-[var(--radius-card)] border border-line bg-paper">
+    <article className="surface">
       <Link to={`/stays/${s.id}`} className="pressable flex items-start gap-3 px-4 pt-4 pb-3">
-        <span className="tabular flex size-12 shrink-0 items-center justify-center rounded-xl border border-line bg-sand font-display text-lg font-bold" aria-label={`Room ${s.roomNumber}`}>
+        <span className="tabular flex size-12 shrink-0 items-center justify-center rounded-xl bg-sand font-display text-lg font-bold" aria-label={`Room ${s.roomNumber}`}>
           {s.roomNumber}
         </span>
         <span className="min-w-0 flex-1">
@@ -247,16 +247,16 @@ export function StayCard({ s, tone, onShare }: { s: StaySummary; tone: StayTone;
         </span>
       </Link>
       {tone !== "cancelled" && (
-        <div className="flex items-center gap-2 border-t border-line px-4 py-2.5">
+        <div className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5">
           <div className="grid flex-1 grid-cols-2 gap-3">
             <div>
               <p className="text-[11px] text-muted">{s.status === "in_house" ? "Bill so far" : "Total"}</p>
               <p className="tabular font-display text-[15px] font-bold">{rupees(total)}</p>
             </div>
             <div>
-              <p className="text-[11px] text-muted">Balance</p>
-              <p className={clsx("tabular font-display text-[15px] font-bold", balance > 0 ? "text-brand-700" : "text-ready")}>
-                {balance > 0 ? rupees(balance) : "Paid"}
+              <p className="text-[11px] text-muted">{balance > 0 ? "To collect" : "Balance"}</p>
+              <p className={clsx("tabular font-display text-[15px] font-bold", balance > 0 ? "text-ink" : "text-ready")}>
+                {balance > 0 ? rupees(balance) : "Settled"}
               </p>
             </div>
           </div>

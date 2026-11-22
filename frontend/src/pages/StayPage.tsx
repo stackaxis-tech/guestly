@@ -1,3 +1,4 @@
+import { hotelToday } from "../lib/reservations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ArrowLeft, BedDouble, CalendarPlus, Check, CheckCircle2, Eye, FileText, IdCard, LogOut, MessageCircle, Phone, Plus, Trash2, Wallet } from "lucide-react";
@@ -135,6 +136,7 @@ export function StayPage() {
   if (q.error) return <ErrorNote message={q.error.message} onRetry={() => q.refetch()} />;
   const s = q.data!;
   const inHouse = s.status === "in_house";
+  const overdue = inHouse && new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(s.expectedCheckOutAt)) < hotelToday();
   const welcomeSent = s.messages.some((m) => m.kind === "welcome" && m.status === "sent");
 
   return (
@@ -156,9 +158,8 @@ export function StayPage() {
       )}
 
       <header className="mb-6 flex flex-wrap items-start gap-4">
-        <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-ink text-white">
-          <span className="text-[10px] font-semibold tracking-wide text-brand-100 uppercase">Room</span>
-          <span className="tabular font-display text-xl leading-none font-bold">{s.roomNumber}</span>
+        <div className="tabular surface flex size-14 shrink-0 items-center justify-center font-display text-xl font-bold" aria-label={`Room ${s.roomNumber}`}>
+          {s.roomNumber}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -166,10 +167,10 @@ export function StayPage() {
             <span
               className={clsx(
                 "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                inHouse ? "bg-occupied-bg text-occupied" : s.status === "checked_out" ? "bg-sand text-ink-soft" : "bg-danger-bg text-danger",
+                overdue ? "bg-danger-bg text-danger" : inHouse ? "bg-occupied-bg text-occupied" : s.status === "checked_out" ? "bg-sand text-ink-soft" : "bg-danger-bg text-danger",
               )}
             >
-              {inHouse ? "In-house" : s.status === "checked_out" ? "Checked out" : "Cancelled"}
+              {overdue ? "Overdue" : inHouse ? "In-house" : s.status === "checked_out" ? "Checked out" : "Cancelled"}
             </span>
           </div>
           <p className="mt-1 text-sm text-muted">
@@ -199,7 +200,7 @@ export function StayPage() {
               <ul className="flex flex-col gap-2">
                 {s.companions.map((c) => (
                   <li key={c.id}>
-                    <Link to={`/guests/${c.id}`} className="text-sm font-medium text-brand-700 hover:underline">
+                    <Link to={`/guests/${c.id}`} className="text-sm font-medium text-ink underline-offset-2 hover:underline">
                       {c.name}
                     </Link>
                     <span className="text-sm text-muted"> · {countryName(c.nationality)}</span>
@@ -310,7 +311,7 @@ function GuestCard({ stay: s }: { stay: StayDetail }) {
           )}
         </div>
         <div className="min-w-0 text-sm">
-          <Link to={`/guests/${g.id}`} className="font-semibold text-brand-700 hover:underline">
+          <Link to={`/guests/${g.id}`} className="font-semibold text-ink underline-offset-2 hover:underline">
             {g.name}
           </Link>
           {g.phone && (

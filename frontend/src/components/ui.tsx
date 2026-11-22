@@ -170,7 +170,7 @@ export function Disclosure({ summary, children, className }: { summary: ReactNod
 
 export function Card({ className, children, id }: { className?: string; children: ReactNode; id?: string }) {
   return (
-    <section id={id} className={clsx("rounded-[var(--radius-card)] border border-line bg-paper", className)}>
+    <section id={id} className={clsx("surface", className)}>
       {children}
     </section>
   );
@@ -180,7 +180,7 @@ export function PageHeader({
   title,
   description,
   actions,
-  eyebrow = "Hotel operations",
+  eyebrow = null,
 }: {
   title: string;
   description?: string;
@@ -196,8 +196,8 @@ export function PageHeader({
             {eyebrow}
           </p>
         )}
-        <h1 className="font-display text-[28px] leading-tight font-bold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-[15px] text-muted">{description}</p>}
+        <h1 className="font-display text-[26px] leading-tight font-bold tracking-tight sm:text-[28px]">{title}</h1>
+        {description && <p className="mt-1 max-w-prose text-[15px] text-muted">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </header>

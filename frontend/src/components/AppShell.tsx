@@ -179,11 +179,11 @@ function PropertySwitcher() {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-paper px-2 py-1.5 text-left transition-colors hover:border-line-strong"
+        className="pressable flex w-full items-center gap-2.5 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-sand"
       >
         <PropertyLogo name={current.name} url={current.logoUrl} size={32} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold">{current.name}</span>
+          <span className="block truncate font-display text-[15px] font-bold">{current.name}</span>
           {place && (
             <span className="flex items-center gap-1 truncate text-xs text-muted">
               <MapPin className="size-3 shrink-0" aria-hidden />
@@ -416,17 +416,14 @@ function BillingBanner() {
 
   const Icon = b.state === "expired" || (b.state === "trial" && b.daysLeft <= 3) || b.state === "grace" ? AlertTriangle : Clock;
   return (
-    <div className={clsx("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[13px] leading-snug sm:mb-6 sm:px-4 sm:py-3 sm:text-sm", tone)} role="status">
-      <div className="flex items-center gap-3">
-        <Icon className="size-4 shrink-0" aria-hidden />
-        <span className="font-medium">{text}</span>
-      </div>
+    <div className="surface mb-5 flex items-center gap-3 px-3.5 py-3 sm:mb-6 sm:px-4" role="status">
+      <span className={clsx("flex size-8 shrink-0 items-center justify-center rounded-full", tone)}>
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink-soft sm:text-sm">{text}</p>
       {showSubscribe && manager && (
-        <Link
-          to="/billing"
-          className="ml-auto shrink-0 rounded-lg bg-ink px-3 py-1 text-xs font-semibold text-white transition hover:bg-ink/90"
-        >
-          Subscribe
+        <Link to="/billing" className="pressable shrink-0 rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white transition hover:bg-ink/90">
+          See plans
         </Link>
       )}
     </div>

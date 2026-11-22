@@ -121,22 +121,18 @@ function DesktopToday() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ready opacity-75" />
                 <span className="relative inline-flex size-2.5 rounded-full bg-ready" />
               </span>
-              <h2 className="font-display font-bold text-lg text-ink">Today's Session</h2>
+              <h2 className="font-display font-bold text-lg text-ink">Today</h2>
             </div>
-            <span className="text-xs text-muted font-medium">Active operational session for {todayIso}</span>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-2">
             {/* Newly Created Check-ins (Current Session) */}
-            <Card className="overflow-hidden border-brand-200 shadow-xs">
-              <div className="flex items-center justify-between border-b border-line bg-brand-50/40 px-5 py-3">
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-line px-5 py-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-brand-900">New check-ins (Current Session)</h3>
-                  <span className="inline-flex items-center rounded-full bg-ready-bg px-2 py-0.5 text-[10px] font-bold text-ready">
-                    Current
-                  </span>
+                  <h3 className="font-semibold text-ink">Checked in today</h3>
                 </div>
-                <span className="text-sm font-bold text-brand-700">{todayCheckIns.length}</span>
+                <span className="text-sm text-muted">{todayCheckIns.length}</span>
               </div>
 
               {todayCheckIns.length === 0 ? (
@@ -164,7 +160,7 @@ function DesktopToday() {
                 <div className="flex items-center justify-between border-b border-line px-5 py-3">
                   <div className="flex items-center gap-2">
                     <XCircle className="size-4 text-danger" />
-                    <h3 className="font-semibold text-ink">Cancelled Check-ins</h3>
+                    <h3 className="font-semibold text-ink">Cancelled today</h3>
                   </div>
                   <span className="text-sm text-muted">{todayCancelled.length}</span>
                 </div>
@@ -187,7 +183,7 @@ function DesktopToday() {
                 <div className="flex items-center justify-between border-b border-line px-5 py-3">
                   <div className="flex items-center gap-2">
                     <Star className="size-4 text-accent-700" />
-                    <h3 className="font-semibold text-ink">Recent Check-outs</h3>
+                    <h3 className="font-semibold text-ink">Checked out today</h3>
                   </div>
                   <span className="text-sm text-muted">{todayCheckouts.length}</span>
                 </div>
@@ -277,7 +273,7 @@ function DesktopToday() {
 
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
-              <h2 className="font-semibold">Other In-house Guests</h2>
+              <h2 className="font-semibold">Other in-house guests</h2>
               <span className="text-sm text-muted">{otherInHouse.length}</span>
             </div>
             {otherInHouse.length === 0 ? (

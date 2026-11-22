@@ -703,7 +703,7 @@ export function CheckInPage() {
       <Link to="/" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
         <ArrowLeft className="size-4" aria-hidden /> Today
       </Link>
-      <PageHeader title="New check-in" description="A warm welcome starts with a smooth check-in. Returning guests fill in from their mobile number." />
+      <PageHeader title="New check-in" description="Start with the guest's mobile number. Returning guests fill in automatically." />
 
       {reservationId && booking.data && !reservation && <div className="mb-4"><ErrorNote message="This booking has already been checked in or closed. Continue only for a new walk-in." /></div>}
       {reservation && (

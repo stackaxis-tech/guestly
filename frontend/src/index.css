@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 /*
- * Gustlog design tokens: Red on clean white.
+ * Gustlog design tokens: calm red on soft depth.
  *
- * 60 / 30 / 10: white surfaces with light grey borders, ink text and
- * structure, and brand red only for primary actions, the active tab and
- * key highlights. Accent gold is for small highlights (stars, attention dots).
+ * White cards sit on a soft neutral page with a faint shadow, so structure
+ * comes from depth rather than outlines. Ink carries text and numbers; brand
+ * red is kept for the one main action on a screen, the active tab and
+ * notification counts. Accent gold is for small highlights only.
  * Use the brand-* / accent-* names, never raw hex values in components.
  */
 @theme {
@@ -35,7 +36,7 @@
   --color-accent-700: #876515;
 
   /* Neutrals: near-white with a faint sage tint */
-  --color-ivory: #ffffff; /* page background */
+  --color-ivory: #f3f4f2; /* page background: soft neutral so white cards lift off it */
   --color-paper: #ffffff; /* cards */
   --color-sand: #f6f7f5; /* hover, inset panels */
   --color-line: #e7e9e5;
@@ -59,9 +60,17 @@
   --color-danger-bg: #fdecea;
 
   --radius-card: 12px;
-  --shadow-card: none;
+  --shadow-card: 0 1px 2px rgb(36 36 36 / 0.04), 0 2px 10px -4px rgb(36 36 36 / 0.08);
   --shadow-pop: 0 12px 32px -12px rgb(36 36 36 / 0.22);
   --shadow-float: 0 10px 30px -8px rgb(36 36 36 / 0.18), 0 2px 6px rgb(36 36 36 / 0.05);
+}
+
+/* The one card surface used everywhere: white, faint hairline, soft shadow. */
+@utility surface {
+  border-radius: var(--radius-card);
+  border: 1px solid rgb(36 36 36 / 0.06);
+  background-color: var(--color-paper);
+  box-shadow: var(--shadow-card);
 }
 
 @layer base {
