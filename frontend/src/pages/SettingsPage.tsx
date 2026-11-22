@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import clsx from "clsx";
-import { Check, Eye, EyeOff, Pencil, Plus } from "lucide-react";
+import { BedDouble, Building2, Check, CreditCard, ImageIcon, MessageCircle, Pencil, Plus, Receipt, UserCircle, Users, type LucideIcon } from "lucide-react";
+import { Navigate, useParams } from "react-router-dom";
+import { ListGroup, ListRow, SearchBar, SubPageHeader } from "../components/mobile";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -13,25 +14,90 @@ import { useCurrentProperty, type Property } from "../lib/property";
 import { LogoPicker } from "../components/PropertyLogo";
 import { PoweredBy } from "../components/PoweredBy";
 import { useRoomTypes, type RoomType } from "../lib/rooms";
-import { useStaffList, type StaffMember } from "../lib/reports";
 
+type SectionId = "profile" | "logo" | "front-desk" | "messages" | "room-types" | "plan";
+
+type SettingsRow = { id: string; label: string; hint: string; icon: LucideIcon; to: string; keywords?: string };
+
+const settingsGroups: { title: string; rows: SettingsRow[] }[] = [
+  {
+    title: "Property",
+    rows: [
+      { id: "profile", label: "Property profile", hint: "Name, address, GSTIN, check-in times", icon: Building2, to: "/settings/profile", keywords: "address gstin invoice prefix review" },
+      { id: "logo", label: "Logo", hint: "Shown in the app and on invoices", icon: ImageIcon, to: "/settings/logo" },
+      { id: "front-desk", label: "Front desk, GST & stay rules", hint: "Checkout rule, WhatsApp number, tax slabs", icon: Receipt, to: "/settings/front-desk", keywords: "tax gst whatsapp checkout policy late early rules" },
+    ],
+  },
+  {
+    title: "Rooms & guests",
+    rows: [
+      { id: "room-types", label: "Room types & tariffs", hint: "Rates and occupancy per room type", icon: BedDouble, to: "/settings/room-types", keywords: "price rate tariff" },
+      { id: "messages", label: "WhatsApp messages", hint: "Welcome, bill and review wording", icon: MessageCircle, to: "/settings/messages", keywords: "template sms" },
+    ],
+  },
+  {
+    title: "Team & account",
+    rows: [
+      { id: "staff", label: "Staff & roles", hint: "Logins and what each person can open", icon: Users, to: "/staff", keywords: "users team login" },
+      { id: "plan", label: "Gustlog plan", hint: "Your subscription and renewal date", icon: CreditCard, to: "/settings/plan", keywords: "subscription billing" },
+      { id: "profile-me", label: "My profile & attendance", hint: "Clock in, clock out, history", icon: UserCircle, to: "/profile" },
+    ],
+  },
+];
+
+const sections: Record<SectionId, { title: string; render: (readOnly: boolean) => React.ReactNode }> = {
+  profile: { title: "Property profile", render: (ro) => <PropertyForm readOnly={ro} /> },
+  logo: { title: "Logo", render: (ro) => <LogoCard readOnly={ro} /> },
+  "front-desk": { title: "Front desk, GST & stay rules", render: (ro) => <FrontDeskCard readOnly={ro} /> },
+  messages: { title: "WhatsApp messages", render: (ro) => <MessagesCard readOnly={ro} /> },
+  "room-types": { title: "Room types & tariffs", render: (ro) => <RoomTypes readOnly={ro} /> },
+  plan: { title: "Gustlog plan", render: () => <PlanCard /> },
+};
+
+/** Settings home: a searchable list; each row opens its own page. */
 export function SettingsPage() {
-  const { user } = useAuth();
-  const manager = canManage(user?.role);
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const groups = settingsGroups
+    .map((g) => ({
+      ...g,
+      rows: g.rows.filter((r) => !needle || `${r.label} ${r.hint} ${r.keywords ?? ""}`.toLowerCase().includes(needle)),
+    }))
+    .filter((g) => g.rows.length > 0);
+
   return (
-    <>
-      <PageHeader title="Settings" description="Property details used on invoices, staff logins, and how your rooms are priced." />
-      <div className="flex flex-col gap-6">
-        <PlanCard />
-        <StaffCard readOnly={!manager} />
-        <LogoCard readOnly={!manager} />
-        <FrontDeskCard readOnly={!manager} />
-        <MessagesCard readOnly={!manager} />
-        <PropertyForm readOnly={!manager} />
-        <RoomTypes readOnly={!manager} />
-        <PoweredBy className="py-2" />
-      </div>
-    </>
+    <div className="mx-auto max-w-2xl">
+      <PageHeader title="Settings" description="Property details, rooms, messages and your team." />
+      <SearchBar value={q} onChange={setQ} placeholder="Search settings" className="mb-5" />
+      {groups.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted">No settings match "{q}".</p>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {groups.map((g) => (
+            <ListGroup key={g.title} title={g.title}>
+              {g.rows.map((r) => (
+                <ListRow key={r.id} to={r.to} icon={r.icon} title={r.label} subtitle={r.hint} />
+              ))}
+            </ListGroup>
+          ))}
+        </div>
+      )}
+      <PoweredBy className="py-6" />
+    </div>
+  );
+}
+
+/** One settings section on its own page, with a back arrow to the list. */
+export function SettingsSectionPage() {
+  const { section } = useParams();
+  const { user } = useAuth();
+  const s = sections[section as SectionId];
+  if (!s) return <Navigate to="/settings" replace />;
+  return (
+    <div className="mx-auto max-w-2xl">
+      <SubPageHeader title={s.title} back="/settings" />
+      {s.render(!canManage(user?.role))}
+    </div>
   );
 }
 
@@ -308,442 +374,6 @@ function PlanCard() {
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{text}</span>
       </div>
     </Card>
-  );
-}
-
-const roleDetails: Record<string, { badge: string; label: string; windowDesc: string; explanation: string }> = {
-  owner: {
-    badge: "bg-brand-50 text-brand-700 border-brand-200",
-    label: "Owner",
-    windowDesc: "Full administrative access (all operations, settings, billing & reports)",
-    explanation: "Full administrative control of property setup, subscription plans, settings, and team logins.",
-  },
-  manager: {
-    badge: "bg-blue-50 text-blue-700 border-blue-200",
-    label: "Manager",
-    windowDesc: "Management window (operations, settings, reports & billing)",
-    explanation: "Can manage all front-desk operations, room setup, staff accounts, reports, and bills.",
-  },
-  front_desk: {
-    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    label: "Front Desk",
-    windowDesc: "Front Desk window (Today, Rooms, Guests, Reservations, Check-in & Profile)",
-    explanation: "Restricted window: Operates daily guest check-ins, rooms, reservations, and guests. Restricted from Settings, Reports, and Billing.",
-  },
-  housekeeping: {
-    badge: "bg-amber-50 text-amber-700 border-amber-200",
-    label: "Housekeeping",
-    windowDesc: "Housekeeping window (Today, Rooms & Profile only)",
-    explanation: "Restricted window: Access only to room readiness, daily session status, and staff attendance. Restricted from Check-in, Guests, Reservations, Settings, Reports, and Billing.",
-  },
-};
-
-function StaffCard({ readOnly }: { readOnly: boolean }) {
-  const property = useCurrentProperty();
-  const staff = useStaffList(property.id);
-  const [editing, setEditing] = useState<StaffMember | "new" | null>(null);
-
-  return (
-    <Card>
-      <SectionHeader
-        title="Staff & Team"
-        body="Create staff logins with their own login ID and password. Non-manager staff are restricted to their designated window."
-        action={
-          !readOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Plus className="size-4" />}
-              onClick={() => setEditing("new")}
-            >
-              Add staff
-            </Button>
-          )
-        }
-      />
-      {staff.isLoading ? (
-        <Spinner />
-      ) : staff.error ? (
-        <div className="p-5">
-          <ErrorNote message={staff.error.message} onRetry={() => staff.refetch()} />
-        </div>
-      ) : !staff.data || staff.data.length === 0 ? (
-        <p className="px-5 py-8 text-center text-sm text-muted">No staff accounts found.</p>
-      ) : (
-        <ul className="divide-y divide-line">
-          {staff.data.map((s) => {
-            const roleMeta = roleDetails[s.role] ?? {
-              badge: "bg-sand text-muted border-line",
-              label: s.role,
-              windowDesc: "Standard workspace",
-              explanation: "",
-            };
-            return (
-              <li key={s.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-                <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 border border-brand-200">
-                    {s.name.slice(0, 2).toUpperCase()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-ink">{s.name}</span>
-                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border ${roleMeta.badge}`}>
-                        {roleMeta.label}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                      <span className="font-mono bg-sand/60 px-1.5 py-0.5 rounded text-ink-soft">
-                        Login ID: {s.email}
-                      </span>
-                      {s.phone && <span>Phone: {s.phone}</span>}
-                      {s.daysPresent > 0 && <span>{s.daysPresent} days on duty</span>}
-                    </div>
-                    <p className="mt-1.5 text-xs text-muted">{roleMeta.windowDesc}</p>
-                  </div>
-                </div>
-                {!readOnly && (
-                  <div>
-                    {s.role === "owner" ? (
-                      <span className="text-xs font-medium text-muted">Primary Owner</span>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={<Pencil className="size-3.5" />}
-                        onClick={() => setEditing(s)}
-                      >
-                        Edit / Reset
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <StaffSheet
-        staff={editing}
-        propertyId={property.id}
-        onClose={() => setEditing(null)}
-      />
-    </Card>
-  );
-}
-
-const staffSchema = z.object({
-  name: z.string().trim().min(2, "Staff name must be at least 2 characters."),
-  role: z.enum(["front_desk", "housekeeping", "manager", "owner"]),
-  email: z.string().trim().min(1, "Enter a login ID or email."),
-  phone: z.string().trim().optional(),
-  password: z.string().optional(),
-});
-type StaffFormValues = z.infer<typeof staffSchema>;
-
-function StaffSheet({
-  staff,
-  propertyId,
-  onClose,
-}: {
-  staff: StaffMember | "new" | null;
-  propertyId: string;
-  onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const existing = staff && staff !== "new" ? staff : null;
-  const [showPassword, setShowPassword] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const form = useForm<StaffFormValues>({
-    resolver: zodResolver(staffSchema),
-    mode: "onTouched",
-    values: existing
-      ? {
-          name: existing.name,
-          role: existing.role as "front_desk" | "housekeeping" | "manager" | "owner",
-          email: existing.email,
-          phone: existing.phone ?? "",
-          password: "",
-        }
-      : {
-          name: "",
-          role: "front_desk",
-          email: "",
-          phone: "",
-          password: "",
-        },
-  });
-
-  const selectedRole = form.watch("role") || (existing ? existing.role : "front_desk");
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["staff-list", propertyId] });
-    qc.invalidateQueries({ queryKey: ["attendance-report", propertyId] });
-  };
-
-  const save = useMutation({
-    mutationFn: async (v: StaffFormValues) => {
-      setFormError("");
-      if (!existing && (!v.password || v.password.trim().length < 6)) {
-        form.setError("password", { message: "Password must be at least 6 characters." });
-        throw new Error("Password must be at least 6 characters.");
-      }
-      if (existing && v.password && v.password.trim().length > 0 && v.password.trim().length < 6) {
-        form.setError("password", { message: "Password must be at least 6 characters." });
-        throw new Error("Password must be at least 6 characters.");
-      }
-
-      if (existing) {
-        return api<StaffMember>(`/properties/${propertyId}/staff/${existing.id}`, {
-          method: "PUT",
-          body: {
-            name: v.name,
-            role: v.role,
-            phone: v.phone?.trim() || undefined,
-            password: v.password?.trim() || undefined,
-          },
-        });
-      } else {
-        return api<StaffMember>(`/properties/${propertyId}/staff`, {
-          method: "POST",
-          body: {
-            name: v.name,
-            role: v.role,
-            email: v.email.trim(),
-            phone: v.phone?.trim() || undefined,
-            password: v.password?.trim(),
-          },
-        });
-      }
-    },
-    onSuccess: () => {
-      invalidate();
-      onClose();
-    },
-    onError: (err) => {
-      if (err instanceof ApiError && err.fields) {
-        for (const [k, v] of Object.entries(err.fields)) {
-          form.setError(k as keyof StaffFormValues, { message: v });
-        }
-      } else if (err instanceof Error) {
-        setFormError(err.message);
-      }
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: () => api(`/properties/${propertyId}/staff/${existing!.id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      invalidate();
-      onClose();
-    },
-    onError: (err) => {
-      if (err instanceof Error) setFormError(err.message);
-    },
-  });
-
-  const e = form.formState.errors;
-
-  return (
-    <Sheet
-      open={staff !== null}
-      onClose={onClose}
-      title={existing ? `Edit ${existing.name}` : "Add staff member"}
-      description={
-        existing
-          ? "Update staff details, modify their assigned role, or reset their login password."
-          : "Create staff credentials for your front desk or housekeeping team."
-      }
-      footer={
-        <>
-          {existing && existing.role !== "owner" && (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mr-auto text-danger hover:bg-danger-bg hover:text-danger"
-              loading={remove.isPending}
-              onClick={() => confirm(`Are you sure you want to remove ${existing.name}? They will no longer be able to log in.`) && remove.mutate()}
-            >
-              Remove staff
-            </Button>
-          )}
-          <Button variant="secondary" type="button" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form="staff-form" loading={save.isPending}>
-            {existing ? "Save changes" : "Create staff"}
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="staff-form"
-        onSubmit={form.handleSubmit((v) => save.mutate(v))}
-        className="flex flex-col gap-4"
-        noValidate
-      >
-        {formError && <ErrorNote message={formError} />}
-        {remove.error && <ErrorNote message={remove.error.message} />}
-
-        <Field label="Full name" error={e.name?.message}>
-          {(id, d) => (
-            <Input
-              id={id}
-              aria-describedby={d}
-              placeholder="e.g. Ramesh Kumar"
-              invalid={!!e.name}
-              {...form.register("name")}
-            />
-          )}
-        </Field>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[13px] font-semibold text-ink">
-            Role & Access Window
-          </label>
-          {existing?.role === "owner" ? (
-            <div className="rounded-xl border border-brand-200 bg-brand-50 p-3.5 text-xs text-brand-900">
-              <span className="font-semibold text-brand-800">Owner Account</span>
-              <p className="mt-0.5 text-muted">The property owner has full administrative access and their role cannot be changed.</p>
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              {[
-                {
-                  role: "front_desk" as const,
-                  title: "Front Desk",
-                  badge: "bg-emerald-100 text-emerald-800 border-emerald-300",
-                  desc: "Check-in, Rooms, Guests, Reservations, Today Session, and Profile.",
-                  restriction: "Restricted from Settings, Reports, and Billing.",
-                },
-                {
-                  role: "housekeeping" as const,
-                  title: "Housekeeping",
-                  badge: "bg-amber-100 text-amber-800 border-amber-300",
-                  desc: "Room status/cleaning, Today Session, and Staff Profile only.",
-                  restriction: "Restricted from Check-in, Guests, Reservations, Settings, Reports, and Billing.",
-                },
-                {
-                  role: "manager" as const,
-                  title: "Manager",
-                  badge: "bg-blue-100 text-blue-800 border-blue-300",
-                  desc: "Full management access across all hotel operations, Settings, Reports, and Billing.",
-                  restriction: "Can manage team accounts and property configurations.",
-                },
-              ].map((opt) => {
-                const isSelected = selectedRole === opt.role;
-                return (
-                  <button
-                    key={opt.role}
-                    type="button"
-                    onClick={() => {
-                      form.setValue("role", opt.role, { shouldValidate: true, shouldDirty: true });
-                    }}
-                    className={clsx(
-                      "flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all",
-                      isSelected
-                        ? "border-brand-700 bg-brand-50/70 ring-2 ring-brand-700/20 shadow-xs"
-                        : "border-line bg-paper hover:border-line-strong hover:bg-sand/40",
-                    )}
-                  >
-                    <div className={clsx(
-                      "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
-                      isSelected ? "border-brand-700 bg-white" : "border-line-strong bg-paper"
-                    )}>
-                      {isSelected && <span className="size-2 rounded-full bg-brand-700" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-ink">{opt.title}</span>
-                        <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-bold border", opt.badge)}>
-                          {opt.title}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-ink-soft">{opt.desc}</p>
-                      <p className="mt-0.5 text-[11px] text-muted">{opt.restriction}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {e.role?.message && (
-            <p className="text-[13px] text-danger" role="alert">
-              {e.role.message}
-            </p>
-          )}
-          <input type="hidden" {...form.register("role")} />
-        </div>
-
-        <Field
-          label="Login ID or Email"
-          error={e.email?.message}
-          hint={existing ? "Login ID cannot be changed once created." : "Staff will enter this Login ID or their phone number at /login."}
-        >
-          {(id, d) => (
-            <Input
-              id={id}
-              aria-describedby={d}
-              disabled={!!existing}
-              placeholder="e.g. ramesh.desk or frontdesk@hotel.com"
-              invalid={!!e.email}
-              {...form.register("email")}
-            />
-          )}
-        </Field>
-
-        <Field
-          label="Mobile phone"
-          optional
-          error={e.phone?.message}
-          hint="Staff can also use this 10-digit number to sign in."
-        >
-          {(id, d) => (
-            <Input
-              id={id}
-              aria-describedby={d}
-              type="tel"
-              placeholder="9876543210"
-              invalid={!!e.phone}
-              {...form.register("phone")}
-            />
-          )}
-        </Field>
-
-        <Field
-          label={existing ? "Reset password" : "Login password"}
-          optional={!!existing}
-          error={e.password?.message}
-          hint={
-            existing
-              ? "Leave empty to keep current password. Enter at least 6 characters to reset."
-              : "Minimum 6 characters. Give this password to the staff member."
-          }
-        >
-          {(id, d) => (
-            <div className="relative">
-              <Input
-                id={id}
-                aria-describedby={d}
-                type={showPassword ? "text" : "password"}
-                placeholder={existing ? "Leave blank to keep existing password" : "••••••••"}
-                className="pr-10"
-                invalid={!!e.password}
-                {...form.register("password")}
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink focus:outline-none"
-                onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          )}
-        </Field>
-      </form>
-    </Sheet>
   );
 }
 

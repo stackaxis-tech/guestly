@@ -29,7 +29,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || loading}
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap",
+        "pressable inline-flex items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap",
         "transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60",
         size === "md" ? "h-10 px-4 text-sm" : "h-8 px-3 text-[13px]",
         variant === "primary" && "border border-brand-700 bg-brand-700 text-white hover:border-brand-800 hover:bg-brand-800 active:bg-brand-900",
@@ -255,6 +255,7 @@ export function Sheet({
   footer?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const drag = useRef<{ y: number; dy: number } | null>(null);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -262,18 +263,52 @@ export function Sheet({
     if (!open && d.open) d.close();
   }, [open]);
 
+  // Phones: drag the handle or title bar down to dismiss, like a native sheet.
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (window.innerWidth >= 640) return;
+    drag.current = { y: e.touches[0].clientY, dy: 0 };
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const d = drag.current;
+    if (!d || !ref.current) return;
+    d.dy = Math.max(0, e.touches[0].clientY - d.y);
+    ref.current.style.transition = "none";
+    ref.current.style.transform = `translateY(${d.dy}px)`;
+  };
+  const onTouchEnd = () => {
+    const d = drag.current;
+    const el = ref.current;
+    drag.current = null;
+    if (!d || !el) return;
+    el.style.transition = "transform 200ms ease";
+    if (d.dy > 90) {
+      el.style.transform = "translateY(100%)";
+      setTimeout(() => {
+        el.style.transform = "";
+        el.style.transition = "";
+        onClose();
+      }, 180);
+    } else {
+      el.style.transform = "";
+    }
+  };
+
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={clsx(
-        "m-0 ml-auto h-dvh max-h-dvh w-full max-w-md bg-paper p-0 text-ink shadow-[var(--shadow-pop)]",
+        "sheet m-0 ml-auto h-dvh max-h-dvh w-full max-w-md bg-paper p-0 text-ink shadow-[var(--shadow-pop)]",
         "backdrop:bg-ink/30 max-sm:top-auto max-sm:bottom-0 max-sm:h-auto max-sm:max-h-[90dvh] max-sm:max-w-none max-sm:rounded-t-2xl",
       )}
     >
       <div className="flex h-full flex-col">
-        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} className="touch-none sm:touch-auto">
+          <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+            <span className="h-1 w-10 rounded-full bg-line-strong" />
+          </div>
+        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 max-sm:pt-2.5">
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
@@ -282,7 +317,8 @@ export function Sheet({
             <X className="size-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-line px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>}
       </div>
     </dialog>

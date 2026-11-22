@@ -121,3 +121,21 @@ export function useCurrentProperty(): Property {
   if (!current) throw new Error("No property selected");
   return current;
 }
+
+/**
+ * Why new check-ins, bookings and rooms can't be added right now, or null if
+ * they can. Mirrors the backend: a lapsed plan is read-only, and a free trial
+ * stops at its entry limit.
+ */
+export function writeBlock(p: Property): { title: string; body: string } | null {
+  if (p.billing?.readOnly) {
+    return { title: "This property is read-only", body: "The Gustlog plan has ended, so nothing new can be added until it's renewed." };
+  }
+  if (p.subscription?.isTrial && p.entryUsage?.exceeded) {
+    return {
+      title: "Free entries used up",
+      body: `All ${p.entryUsage.limit} free entries have been used. New check-ins, bookings and rooms need a Gustlog plan.`,
+    };
+  }
+  return null;
+}
