@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { BarChart3, ChevronRight, Download, UserCheck, Users } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button, Card, EmptyState, ErrorNote, Field, Input, PageHeader, Spinner } from "../components/ui";
 import { roleLabel } from "../lib/auth";
 import { rupees } from "../lib/format";
@@ -89,7 +89,9 @@ function InvoiceRow({ v, showDue }: { v: ReportInvoice; showDue?: boolean }) {
 
 export function ReportsPage() {
   const property = useCurrentProperty();
-  const [tab, setTab] = useState<"financial" | "attendance">("financial");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "attendance" ? "attendance" : "financial";
+  const [tab, setTab] = useState<"financial" | "attendance">(initialTab);
   const [preset, setPreset] = useState<Preset>("month");
   const [custom, setCustom] = useState<[string, string]>(() => rangeFor("month"));
   const [from, to] = preset === "custom" ? custom : rangeFor(preset);
@@ -153,7 +155,10 @@ export function ReportsPage() {
           type="button"
           role="tab"
           aria-selected={tab === "financial"}
-          onClick={() => setTab("financial")}
+          onClick={() => {
+            setTab("financial");
+            setSearchParams({});
+          }}
           className={clsx(
             "-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
             tab === "financial" ? "border-brand-700 text-brand-800" : "border-transparent text-muted hover:text-ink",
@@ -166,7 +171,10 @@ export function ReportsPage() {
           type="button"
           role="tab"
           aria-selected={tab === "attendance"}
-          onClick={() => setTab("attendance")}
+          onClick={() => {
+            setTab("attendance");
+            setSearchParams({ tab: "attendance" });
+          }}
           className={clsx(
             "-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
             tab === "attendance" ? "border-brand-700 text-brand-800" : "border-transparent text-muted hover:text-ink",

@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Check, Eye, EyeOff, Pencil, Plus } from "lucide-react";
+import { ArrowRight, BarChart3, Check, Clock, Eye, EyeOff, Pencil, Plus, UserCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
 import { z } from "zod";
 import { Button, Card, ErrorNote, Field, Input, PageHeader, Select, Sheet, Spinner, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
@@ -13,22 +14,28 @@ import { useCurrentProperty, type Property } from "../lib/property";
 import { LogoPicker } from "../components/PropertyLogo";
 import { PoweredBy } from "../components/PoweredBy";
 import { useRoomTypes, type RoomType } from "../lib/rooms";
-import { useStaffList, type StaffMember } from "../lib/reports";
+import { useAttendanceReport, useStaffList, type StaffMember } from "../lib/reports";
+import { hotelToday } from "../lib/reservations";
 
 export function SettingsPage() {
   const { user } = useAuth();
   const manager = canManage(user?.role);
   return (
     <>
-      <PageHeader title="Settings" description="Property details used on invoices, staff logins, and how your rooms are priced." />
+      <PageHeader
+        title="Settings"
+        description="Property details, staff management, attendance, reports, and room configuration."
+      />
       <div className="flex flex-col gap-6">
         <PlanCard />
         <StaffCard readOnly={!manager} />
+        <StaffAttendanceCard />
+        <ReportsCard />
+        <PropertyForm readOnly={!manager} />
+        <RoomTypes readOnly={!manager} />
         <LogoCard readOnly={!manager} />
         <FrontDeskCard readOnly={!manager} />
         <MessagesCard readOnly={!manager} />
-        <PropertyForm readOnly={!manager} />
-        <RoomTypes readOnly={!manager} />
         <PoweredBy className="py-2" />
       </div>
     </>
@@ -346,19 +353,26 @@ function StaffCard({ readOnly }: { readOnly: boolean }) {
   return (
     <Card>
       <SectionHeader
-        title="Staff & Team"
-        body="Create staff logins with their own login ID and password. Non-manager staff are restricted to their designated window."
+        title="Staff Management"
+        body="Staff details, staff profiles and team management. Non-manager staff are restricted to their designated window."
         action={
-          !readOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Plus className="size-4" />}
-              onClick={() => setEditing("new")}
-            >
-              Add staff
-            </Button>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/staff">
+              <Button variant="ghost" size="sm" icon={<Users className="size-4" />}>
+                Dedicated staff window
+              </Button>
+            </Link>
+            {!readOnly && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Plus className="size-4" />}
+                onClick={() => setEditing("new")}
+              >
+                Add staff
+              </Button>
+            )}
+          </div>
         }
       />
       {staff.isLoading ? (
@@ -744,6 +758,157 @@ function StaffSheet({
         </Field>
       </form>
     </Sheet>
+  );
+}
+
+function StaffAttendanceCard() {
+  const property = useCurrentProperty();
+  const today = hotelToday();
+  const attQ = useAttendanceReport(property.id, today, today);
+  const att = attQ.data;
+
+  const records = att?.records ?? [];
+  const onDuty = records.filter((r) => !r.clockOutAt);
+
+  return (
+    <Card>
+      <SectionHeader
+        title="Staff Attendance"
+        body="Daily attendance information, duty status, and staff work history."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/profile">
+              <Button variant="ghost" size="sm" icon={<Clock className="size-4" />}>
+                My profile & clock in
+              </Button>
+            </Link>
+            <Link to="/reports?tab=attendance">
+              <Button variant="secondary" size="sm" icon={<BarChart3 className="size-4" />}>
+                Attendance report
+              </Button>
+            </Link>
+          </div>
+        }
+      />
+      {attQ.isLoading ? (
+        <Spinner />
+      ) : attQ.error ? (
+        <div className="p-5">
+          <ErrorNote message={attQ.error.message} onRetry={() => attQ.refetch()} />
+        </div>
+      ) : (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-line bg-sand/40 p-3.5">
+              <p className="text-xs font-semibold tracking-wider text-muted uppercase">On Duty Now</p>
+              <p className="tabular font-display mt-1 text-2xl font-bold text-ready">
+                {onDuty.length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-line bg-sand/40 p-3.5">
+              <p className="text-xs font-semibold tracking-wider text-muted uppercase">Present Today</p>
+              <p className="tabular font-display mt-1 text-2xl font-bold text-ink">
+                {att?.summary?.presentToday ?? 0}
+              </p>
+            </div>
+            <div className="col-span-2 rounded-xl border border-line bg-sand/40 p-3.5 sm:col-span-1">
+              <p className="text-xs font-semibold tracking-wider text-muted uppercase">Total Staff</p>
+              <p className="tabular font-display mt-1 text-2xl font-bold text-ink">
+                {att?.summary?.totalStaff ?? 0}
+              </p>
+            </div>
+          </div>
+
+          {records.length === 0 ? (
+            <p className="py-2 text-center text-xs text-muted">
+              No staff clock-ins recorded for today yet. Staff can clock in through their Profile window.
+            </p>
+          ) : (
+            <div className="divide-y divide-line rounded-lg border border-line">
+              {records.slice(0, 4).map((r) => (
+                <div key={r.id} className="flex items-center justify-between px-3.5 py-2.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-semibold text-ink">{r.staffName}</span>
+                    <span className="text-muted ml-2">({r.staffRole})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={clsx(
+                        "rounded px-2 py-0.5 text-[11px] font-semibold",
+                        r.clockOutAt ? "bg-sand text-muted" : "bg-emerald-50 text-emerald-700 border border-emerald-200",
+                      )}
+                    >
+                      {r.clockOutAt ? "Clocked out" : "On duty"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ReportsCard() {
+  return (
+    <Card>
+      <SectionHeader
+        title="Reports"
+        body="Access business metrics, financial summaries, GST tax returns, and staff attendance records."
+        action={
+          <Link to="/reports">
+            <Button variant="primary" size="sm" icon={<BarChart3 className="size-4" />}>
+              Open Reports
+            </Button>
+          </Link>
+        }
+      />
+      <div className="grid gap-3 p-5 sm:grid-cols-2">
+        <Link
+          to="/reports"
+          className="group flex flex-col justify-between rounded-xl border border-line p-4 transition-colors hover:border-line-strong hover:bg-sand/30"
+        >
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                <BarChart3 className="size-4" />
+              </span>
+              <ArrowRight className="size-4 text-muted transition-transform group-hover:translate-x-1" />
+            </div>
+            <h3 className="mt-3 text-sm font-semibold text-ink">Financial & GST Reports</h3>
+            <p className="mt-1 text-xs text-muted">
+              Monthly revenue, GST breakdown (CGST/SGST/IGST), invoices, and payment mode settlements.
+            </p>
+          </div>
+          <span className="mt-4 text-xs font-semibold text-brand-700 group-hover:underline">
+            View financial reports →
+          </span>
+        </Link>
+
+        <Link
+          to="/reports?tab=attendance"
+          className="group flex flex-col justify-between rounded-xl border border-line p-4 transition-colors hover:border-line-strong hover:bg-sand/30"
+        >
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <UserCheck className="size-4" />
+              </span>
+              <ArrowRight className="size-4 text-muted transition-transform group-hover:translate-x-1" />
+            </div>
+            <h3 className="mt-3 text-sm font-semibold text-ink">Staff Attendance Reports</h3>
+            <p className="mt-1 text-xs text-muted">
+              Complete staff duty logs, clock-in/out timestamps, days present, and exportable CSV attendance files.
+            </p>
+          </div>
+          <span className="mt-4 text-xs font-semibold text-brand-700 group-hover:underline">
+            View attendance reports →
+          </span>
+        </Link>
+      </div>
+    </Card>
   );
 }
 
