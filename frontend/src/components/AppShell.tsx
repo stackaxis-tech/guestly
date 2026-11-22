@@ -1,14 +1,20 @@
 import clsx from "clsx";
 import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, UserCheck, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Bell, ChevronDown, Check, Clock, LogOut, MapPin, MoreHorizontal, Settings, UserCheck } from "lucide-react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Logo, LogoMark } from "./brand/Logo";
-import { Button, ErrorNote, Spinner } from "./ui";
+import { Button, ErrorNote, Sheet, Spinner } from "./ui";
+import { ListGroup, ListRow } from "./mobile";
 import { PropertyLogo } from "./PropertyLogo";
+import { useAlerts } from "../lib/alerts";
 import { roleLabel, useAuth } from "../lib/auth";
 import { initials } from "../lib/format";
-import { useProperty } from "../lib/property";
+import { menuFor } from "../lib/menu";
+import { haptic } from "../lib/native";
+import { useCurrentProperty, useProperty } from "../lib/property";
 
 const allNav: { to: string; label: string; short?: string; icon: typeof Home; end?: boolean; housekeeping: boolean }[] = [
   { to: "/", label: "Today", icon: Home, end: true, housekeeping: true },
@@ -22,14 +28,23 @@ function useNav() {
   if (user?.role === "housekeeping") return allNav.filter((n) => n.housekeeping);
   return allNav;
 }
+/** Lets any page (e.g. Home's "All" tile) open the More sheet. */
+const MoreContext = createContext<() => void>(() => {});
+export const useOpenMore = () => useContext(MoreContext);
+
+/** Full-screen pages with their own back arrow: no bottom nav. */
+const hideNav = (path: string) => path === "/check-in" || /^\/settings\/[^/]+/.test(path);
 
 export function AppShell() {
   const { current, isLoading, error, refetch } = useProperty();
   const { user } = useAuth();
-  const nav = useNav();
+  const nav = menuFor(user?.role, "nav");
   const { pathname } = useLocation();
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => setMoreOpen(false), [pathname]);
 
   return (
+    <MoreContext.Provider value={() => setMoreOpen(true)}>
     <div className="min-h-dvh">
       {/* Top bar: brand, property switcher, management quick links, account */}
       <header className="sticky top-0 z-20 border-b border-line bg-paper/95 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -58,7 +73,8 @@ export function AppShell() {
               </NavLink>
             </div>
           )}
-          <div className="flex shrink-0 items-center justify-end sm:ml-auto lg:ml-0 lg:flex-1">
+          <div className="flex shrink-0 items-center justify-end gap-1 sm:ml-auto lg:ml-0 lg:flex-1">
+            {current && <AlertsBell />}
             <UserMenu />
           </div>
         </div>
@@ -81,21 +97,25 @@ export function AppShell() {
         )}
       </main>
 
-      {/* Floating bottom navigation (all screen sizes) */}
-      {pathname !== "/check-in" && (
+      {/* Floating bottom navigation (all screen sizes). On phones the
+          manager-only tabs move into the More sheet so the bar stays at five. */}
+      {!hideNav(pathname) && (
         <nav
-          className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
+          className="hide-on-keyboard fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
           aria-label="Main"
         >
           {nav.map(({ to, label, short, icon: Icon, end }) => (
+          {nav.map(({ id, to, label, short, icon: Icon, end, nav: where }) => (
             <NavLink
-              key={to}
+              key={id}
               to={to}
               end={end}
+              onClick={() => haptic()}
               className={({ isActive }) =>
                 clsx(
-                  "relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors",
+                  "pressable relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors",
                   isActive ? "font-bold text-brand-700" : "font-medium text-muted hover:text-ink",
+                  where === "desktop" && "hidden lg:flex",
                 )
               }
             >
@@ -111,9 +131,25 @@ export function AppShell() {
               )}
             </NavLink>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              haptic();
+              setMoreOpen(true);
+            }}
+            className={clsx(
+              "pressable relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors lg:hidden",
+              moreOpen ? "font-bold text-brand-700" : "font-medium text-muted hover:text-ink",
+            )}
+          >
+            <MoreHorizontal className="size-5" strokeWidth={1.8} aria-hidden />
+            More
+          </button>
         </nav>
       )}
+      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} />
     </div>
+    </MoreContext.Provider>
   );
 }
 
@@ -189,6 +225,84 @@ function PropertySwitcher() {
   );
 }
 
+function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user, logout } = useAuth();
+  const items = menuFor(user?.role, "more");
+  if (!user) return null;
+  return (
+    <Sheet open={open} onClose={onClose} title="More" description={`${user.name} · ${roleLabel[user.role]}`}>
+      <div className="flex flex-col gap-4">
+        {items.length > 0 && (
+          <ListGroup>
+            {items.map((m) => (
+              <ListRow key={m.id} to={m.to} onClick={onClose} icon={m.icon} title={m.label} />
+            ))}
+          </ListGroup>
+        )}
+        <ListGroup>
+          <ListRow onClick={logout} icon={LogOut} title="Sign out" tone="danger" />
+        </ListGroup>
+      </div>
+    </Sheet>
+  );
+}
+
+/** The bell: things that need attention today, worked out on the device. */
+function AlertsBell() {
+  const property = useCurrentProperty();
+  const { user } = useAuth();
+  const alerts = useAlerts(property, user?.role);
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => setOpen(false), [pathname]);
+  const tone = { info: "bg-brand-50 text-brand-700", warn: "bg-accent-50 text-accent-700", danger: "bg-danger-bg text-danger" };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="relative flex size-10 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand"
+        aria-label={alerts.length ? `${alerts.length} alerts` : "Alerts"}
+      >
+        <Bell className="size-5" aria-hidden />
+        {alerts.length > 0 && (
+          <span className="tabular absolute top-1 right-1 flex min-w-4 items-center justify-center rounded-full bg-brand-700 px-1 text-[10px] font-bold text-white">
+            {alerts.length}
+          </span>
+        )}
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Needs attention" description={property.name}>
+        {alerts.length === 0 ? (
+          <div className="flex flex-col items-center py-10 text-center">
+            <span className="mb-3 flex size-12 items-center justify-center rounded-full bg-ready-bg text-ready">
+              <Check className="size-6" aria-hidden />
+            </span>
+            <p className="font-semibold">All clear</p>
+            <p className="mt-1 text-sm text-muted">Nothing needs your attention right now.</p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {alerts.map((a) => (
+              <li key={a.id}>
+                <Link to={a.to} onClick={() => setOpen(false)} className="flex items-start gap-3 rounded-xl border border-line p-3.5 hover:bg-sand">
+                  <span className={clsx("flex size-9 shrink-0 items-center justify-center rounded-lg", tone[a.tone])}>
+                    <a.icon className="size-[18px]" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-semibold">{a.title}</span>
+                    <span className="block text-[13px] text-muted">{a.body}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Sheet>
+    </>
+  );
+}
+
 function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -259,6 +373,9 @@ function UserMenu() {
 /** Warns hotel staff about their Gustlog plan: trial ending, grace period, or read-only. */
 function BillingBanner() {
   const { current } = useProperty();
+  const { user } = useAuth();
+  // Only owners and managers can open /billing; other staff get the facts, not a dead button.
+  const manager = user?.role === "owner" || user?.role === "manager";
   const b = current?.billing;
   if (!b) return null;
   const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
@@ -272,7 +389,7 @@ function BillingBanner() {
 
   if (isTrial && usage && usage.exceeded) {
     tone = "border-danger/30 bg-danger-bg text-danger";
-    text = `Free tier limit reached (${usage.total}/${usage.limit} entries used across rooms, check-ins & reservations). Move to a subscription plan to continue.`;
+    text = `Free limit reached: ${usage.total} of ${usage.limit} entries used. Subscribe to keep adding rooms, check-ins and bookings.`;
     showSubscribe = true;
   } else if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
@@ -302,12 +419,12 @@ function BillingBanner() {
 
   const Icon = b.state === "expired" || (b.state === "trial" && b.daysLeft <= 3) || b.state === "grace" ? AlertTriangle : Clock;
   return (
-    <div className={clsx("mb-6 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm", tone)} role="status">
+    <div className={clsx("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[13px] leading-snug sm:mb-6 sm:px-4 sm:py-3 sm:text-sm", tone)} role="status">
       <div className="flex items-center gap-3">
         <Icon className="size-4 shrink-0" aria-hidden />
         <span className="font-medium">{text}</span>
       </div>
-      {showSubscribe && (
+      {showSubscribe && manager && (
         <Link
           to="/billing"
           className="ml-auto shrink-0 rounded-lg bg-ink px-3 py-1 text-xs font-semibold text-white transition hover:bg-ink/90"

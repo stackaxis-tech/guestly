@@ -47,6 +47,9 @@ export type StaySummary = {
   checkedOutAt: string | null;
   nights: number | null;
   paid: number;
+  /** Bill total and balance due in paise (an estimate while in-house). */
+  total: number;
+  balance: number;
   /** Rules the stay was checked in under. */
   arrivalDate: string;
   checkoutPolicy: CheckoutPolicy;
@@ -186,8 +189,8 @@ export const docTypeLabel: Record<DocType, string> = {
 
 export type StayStatusQuery = "in_house" | "checked_out" | "cancelled" | "today" | "today_session" | "all";
 
-export const useStays = (propertyId: string, status: StayStatusQuery = "in_house") =>
-  useQuery({ queryKey: ["stays", propertyId, status], queryFn: () => api<StaySummary[]>(`/properties/${propertyId}/stays?status=${status}`) });
+export const useStays = (propertyId: string, status: StayStatusQuery = "in_house", enabled = true) =>
+  useQuery({ queryKey: ["stays", propertyId, status], queryFn: () => api<StaySummary[]>(`/properties/${propertyId}/stays?status=${status}`), enabled });
 
 export const useStay = (propertyId: string, id: string) =>
   useQuery({ queryKey: ["stay", propertyId, id], queryFn: () => api<StayDetail>(`/properties/${propertyId}/stays/${id}`) });

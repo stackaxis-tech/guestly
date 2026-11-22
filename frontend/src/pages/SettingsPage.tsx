@@ -2,6 +2,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ArrowRight, BarChart3, Check, Clock, Eye, EyeOff, Pencil, Plus, UserCheck, Users } from "lucide-react";
+import { BedDouble, Building2, Check, CreditCard, ImageIcon, MessageCircle, Pencil, Plus, Receipt, UserCircle, Users, type LucideIcon } from "lucide-react";
+import { Navigate, useParams } from "react-router-dom";
+import { ListGroup, ListRow, SearchBar, SubPageHeader } from "../components/mobile";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
@@ -17,9 +20,84 @@ import { useRoomTypes, type RoomType } from "../lib/rooms";
 import { useAttendanceReport, useStaffList, type StaffMember } from "../lib/reports";
 import { hotelToday } from "../lib/reservations";
 
+type SectionId = "profile" | "logo" | "front-desk" | "messages" | "room-types" | "plan";
+
+type SettingsRow = { id: string; label: string; hint: string; icon: LucideIcon; to: string; keywords?: string };
+
+const settingsGroups: { title: string; rows: SettingsRow[] }[] = [
+  {
+    title: "Property",
+    rows: [
+      { id: "profile", label: "Property profile", hint: "Name, address, GSTIN, check-in times", icon: Building2, to: "/settings/profile", keywords: "address gstin invoice prefix review" },
+      { id: "logo", label: "Logo", hint: "Shown in the app and on invoices", icon: ImageIcon, to: "/settings/logo" },
+      { id: "front-desk", label: "Front desk, GST & stay rules", hint: "Checkout rule, WhatsApp number, tax slabs", icon: Receipt, to: "/settings/front-desk", keywords: "tax gst whatsapp checkout policy late early rules" },
+    ],
+  },
+  {
+    title: "Rooms & guests",
+    rows: [
+      { id: "room-types", label: "Room types & tariffs", hint: "Rates and occupancy per room type", icon: BedDouble, to: "/settings/room-types", keywords: "price rate tariff" },
+      { id: "messages", label: "WhatsApp messages", hint: "Welcome, bill and review wording", icon: MessageCircle, to: "/settings/messages", keywords: "template sms" },
+    ],
+  },
+  {
+    title: "Team & account",
+    rows: [
+      { id: "staff", label: "Staff & roles", hint: "Logins and what each person can open", icon: Users, to: "/staff", keywords: "users team login" },
+      { id: "plan", label: "Gustlog plan", hint: "Your subscription and renewal date", icon: CreditCard, to: "/settings/plan", keywords: "subscription billing" },
+      { id: "profile-me", label: "My profile & attendance", hint: "Clock in, clock out, history", icon: UserCircle, to: "/profile" },
+    ],
+  },
+];
+
+const sections: Record<SectionId, { title: string; render: (readOnly: boolean) => React.ReactNode }> = {
+  profile: { title: "Property profile", render: (ro) => <PropertyForm readOnly={ro} /> },
+  logo: { title: "Logo", render: (ro) => <LogoCard readOnly={ro} /> },
+  "front-desk": { title: "Front desk, GST & stay rules", render: (ro) => <FrontDeskCard readOnly={ro} /> },
+  messages: { title: "WhatsApp messages", render: (ro) => <MessagesCard readOnly={ro} /> },
+  "room-types": { title: "Room types & tariffs", render: (ro) => <RoomTypes readOnly={ro} /> },
+  plan: { title: "Gustlog plan", render: () => <PlanCard /> },
+};
+
+/** Settings home: a searchable list; each row opens its own page. */
 export function SettingsPage() {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const groups = settingsGroups
+    .map((g) => ({
+      ...g,
+      rows: g.rows.filter((r) => !needle || `${r.label} ${r.hint} ${r.keywords ?? ""}`.toLowerCase().includes(needle)),
+    }))
+    .filter((g) => g.rows.length > 0);
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <PageHeader title="Settings" description="Property details, rooms, messages and your team." />
+      <SearchBar value={q} onChange={setQ} placeholder="Search settings" className="mb-5" />
+      {groups.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted">No settings match "{q}".</p>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {groups.map((g) => (
+            <ListGroup key={g.title} title={g.title}>
+              {g.rows.map((r) => (
+                <ListRow key={r.id} to={r.to} icon={r.icon} title={r.label} subtitle={r.hint} />
+              ))}
+            </ListGroup>
+          ))}
+        </div>
+      )}
+      <PoweredBy className="py-6" />
+    </div>
+  );
+}
+
+/** One settings section on its own page, with a back arrow to the list. */
+export function SettingsSectionPage() {
+  const { section } = useParams();
   const { user } = useAuth();
-  const manager = canManage(user?.role);
+  const s = sections[section as SectionId];
+  if (!s) return <Navigate to="/settings" replace />;
   return (
     <>
       <PageHeader
@@ -39,6 +117,10 @@ export function SettingsPage() {
         <PoweredBy className="py-2" />
       </div>
     </>
+    <div className="mx-auto max-w-2xl">
+      <SubPageHeader title={s.title} back="/settings" />
+      {s.render(!canManage(user?.role))}
+    </div>
   );
 }
 

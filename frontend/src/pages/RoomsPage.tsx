@@ -52,7 +52,7 @@ export function RoomsPage() {
             icon={<BedDouble className="size-6" />}
             title="No rooms yet"
             body={manager ? "Add room types (like Deluxe or Suite) in Settings, then add your rooms here." : "Ask a manager to add the property's rooms."}
-            action={manager && <Link to="/settings"><Button variant="secondary">Set up room types</Button></Link>}
+            action={manager && <Link to="/settings/room-types"><Button variant="secondary">Set up room types</Button></Link>}
           />
         </Card>
       ) : (

@@ -443,6 +443,10 @@ type StaySummary struct {
 	CheckedOutAt       *time.Time `json:"checkedOutAt"`
 	Nights             *int       `json:"nights"`
 	Paid               int64      `json:"paid"`
+	// Bill total and balance due (paise). While in-house the total is the
+	// running estimate, the same figure the stay page shows.
+	Total   int64 `json:"total"`
+	Balance int64 `json:"balance"`
 	// Rules the stay was checked in under (see StayRules).
 	ArrivalDate       string `json:"arrivalDate"` // first night billed, YYYY-MM-DD
 	CheckoutPolicy    string `json:"checkoutPolicy"`
@@ -513,7 +517,52 @@ func (h *Handler) ListStays(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if err := h.addTotals(r.Context(), out); err != nil {
+		return err
+	}
 	httpx.JSON(w, http.StatusOK, out)
+	return nil
+}
+
+// addTotals fills Total and Balance on each summary, loading every stay's
+// charges in one query so list cards can show money without N+1 requests.
+func (h *Handler) addTotals(ctx context.Context, stays []StaySummary) error {
+	if len(stays) == 0 {
+		return nil
+	}
+	ids := make([]string, len(stays))
+	for i, s := range stays {
+		ids[i] = s.ID
+	}
+	rows, err := h.DB.Query(ctx, `SELECT stay_id::text, id, description, quantity, unit_price, gst_rate::float8, charged_on
+		FROM stay_charges WHERE stay_id::text = ANY($1) ORDER BY charged_on, created_at`, ids)
+	if err != nil {
+		return err
+	}
+	charges := map[string][]Charge{}
+	for rows.Next() {
+		var stayID string
+		var c Charge
+		if err := rows.Scan(&stayID, &c.ID, &c.Description, &c.Quantity, &c.UnitPrice, &c.GSTRate, &c.ChargedOn); err != nil {
+			rows.Close()
+			return err
+		}
+		charges[stayID] = append(charges[stayID], c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	prop, err := h.loadProperty(ctx)
+	if err != nil {
+		return err
+	}
+	tax := taxConfig(prop)
+	now := time.Now()
+	for i := range stays {
+		b := computeBill(StayDetail{StaySummary: stays[i], Charges: charges[stays[i].ID]}, tax, now)
+		stays[i].Total, stays[i].Balance = b.Total, b.Balance
+	}
 	return nil
 }
 
@@ -654,6 +703,7 @@ func (h *Handler) loadStay(ctx context.Context, id string) (StayDetail, error) {
 		return d, err
 	}
 	d.Bill = computeBill(d, taxConfig(prop), time.Now())
+	d.Total, d.Balance = d.Bill.Total, d.Bill.Balance
 	return d, nil
 }
 
