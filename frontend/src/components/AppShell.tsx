@@ -1,4 +1,6 @@
 import clsx from "clsx";
+import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Check, Clock, Home, LogOut, MapPin, Settings, UserCheck, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, ChevronDown, Check, Clock, LogOut, MapPin, MoreHorizontal, Settings, UserCheck } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
@@ -14,6 +16,18 @@ import { menuFor } from "../lib/menu";
 import { haptic } from "../lib/native";
 import { useCurrentProperty, useProperty } from "../lib/property";
 
+const allNav: { to: string; label: string; short?: string; icon: typeof Home; end?: boolean; housekeeping: boolean }[] = [
+  { to: "/", label: "Today", icon: Home, end: true, housekeeping: true },
+  { to: "/rooms", label: "Rooms", icon: BedDouble, housekeeping: true },
+  { to: "/guests", label: "Guests", icon: Users, housekeeping: false },
+  { to: "/reservations", label: "Reservations", short: "Bookings", icon: CalendarDays, housekeeping: false },
+];
+
+function useNav() {
+  const { user } = useAuth();
+  if (user?.role === "housekeeping") return allNav.filter((n) => n.housekeeping);
+  return allNav;
+}
 /** Lets any page (e.g. Home's "All" tile) open the More sheet. */
 const MoreContext = createContext<() => void>(() => {});
 export const useOpenMore = () => useContext(MoreContext);
@@ -42,32 +56,20 @@ export function AppShell() {
           <div className="min-w-0 flex-1 sm:max-w-64 lg:max-w-60 lg:flex-none">
             <PropertySwitcher />
           </div>
-          {/* Direct header links for Owner / Manager */}
+          {/* Direct header link for Owner / Manager */}
           {user && (user.role === "owner" || user.role === "manager") && (
-            <div className="hidden items-center gap-2 sm:flex sm:ml-4">
-              <NavLink
-                to="/staff"
-                className={({ isActive }) =>
-                  clsx(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                    isActive ? "bg-brand-50 text-brand-700 border border-brand-200" : "text-muted hover:bg-sand hover:text-ink",
-                  )
-                }
-              >
-                <UserCheck className="size-3.5" aria-hidden />
-                Staff & Team
-              </NavLink>
+            <div className="flex items-center gap-2 sm:ml-4">
               <NavLink
                 to="/settings"
                 className={({ isActive }) =>
                   clsx(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                    "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
                     isActive ? "bg-brand-50 text-brand-700 border border-brand-200" : "text-muted hover:bg-sand hover:text-ink",
                   )
                 }
               >
                 <Settings className="size-3.5" aria-hidden />
-                Settings
+                <span>Settings</span>
               </NavLink>
             </div>
           )}
@@ -102,6 +104,7 @@ export function AppShell() {
           className="hide-on-keyboard fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
           aria-label="Main"
         >
+          {nav.map(({ to, label, short, icon: Icon, end }) => (
           {nav.map(({ id, to, label, short, icon: Icon, end, nav: where }) => (
             <NavLink
               key={id}

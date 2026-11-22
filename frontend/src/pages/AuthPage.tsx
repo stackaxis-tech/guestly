@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { z } from "zod";
 import { Logo } from "../components/brand/Logo";
 import { PoweredBy } from "../components/PoweredBy";
@@ -35,6 +35,9 @@ export function AuthPage({ children }: { children?: React.ReactNode }) {
 }
 
 export function BrandPanel() {
+  const location = useLocation();
+  const isRegister = location.pathname === "/register";
+
   return (
     <div className="relative hidden overflow-hidden bg-ink p-12 text-white lg:flex lg:flex-col">
       <Logo size={34} tone="inverse" />
@@ -49,17 +52,29 @@ export function BrandPanel() {
           Check-ins, rooms, GST invoices and guest reviews for small hotels and homestays, in one calm place.
         </p>
 
-        {/* Free for 30 days card */}
-        <div className="mt-8 rounded-xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm">
-          <span className="text-xs font-bold tracking-wider text-accent-400 uppercase">Free for 30 days</span>
-          <p className="mt-1 text-sm text-white/80">No card needed. Subscribe only when you're ready.</p>
-          <Link
-            to="/register"
-            className="mt-3 inline-flex items-center justify-center rounded-lg bg-accent-400 px-4 py-2 text-xs font-semibold text-ink transition hover:bg-accent-300"
-          >
-            Start free trial
-          </Link>
-        </div>
+        {isRegister ? (
+          <div className="mt-8 rounded-xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm">
+            <span className="text-xs font-bold tracking-wider text-accent-400 uppercase">Already registered</span>
+            <p className="mt-1 text-sm text-white/80">Sign in to access your front desk or staff workspace.</p>
+            <Link
+              to="/login"
+              className="mt-3 inline-flex items-center justify-center rounded-lg bg-accent-400 px-4 py-2 text-xs font-semibold text-ink transition hover:bg-accent-300"
+            >
+              Sign in
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-8 rounded-xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm">
+            <span className="text-xs font-bold tracking-wider text-accent-400 uppercase">New Hotel</span>
+            <p className="mt-1 text-sm text-white/80">Set up your property and start welcoming guests.</p>
+            <Link
+              to="/register"
+              className="mt-3 inline-flex items-center justify-center rounded-lg bg-accent-400 px-4 py-2 text-xs font-semibold text-ink transition hover:bg-accent-300"
+            >
+              Try to Register
+            </Link>
+          </div>
+        )}
       </div>
       {/* Decorative doorway echoing the logo mark */}
       <svg
@@ -158,22 +173,22 @@ function LoginForm() {
         </Button>
       </form>
 
-      {/* Mobile-only 30-day card */}
+      {/* Mobile-only registration card */}
       <div className="mt-8 rounded-xl border border-line bg-paper p-4 lg:hidden">
-        <span className="text-xs font-bold tracking-wider text-accent-700 uppercase">Free for 30 days</span>
-        <p className="mt-1 text-sm text-muted">No card needed. Subscribe only when you're ready.</p>
+        <span className="text-xs font-bold tracking-wider text-accent-700 uppercase">New Hotel</span>
+        <p className="mt-1 text-sm text-muted">Set up your property and start welcoming guests.</p>
         <Link
           to="/register"
           className="mt-3 inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2 text-xs font-semibold text-white transition hover:bg-ink/90"
         >
-          Start free trial
+          Try to Register
         </Link>
       </div>
 
       <p className="mt-6 text-center text-sm text-muted">
         New hotel?{" "}
         <Link to="/register" className="font-semibold text-brand-700 hover:text-brand-800">
-          Start your free trial
+          Try to Register
         </Link>
       </p>
     </>

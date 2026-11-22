@@ -102,7 +102,7 @@ func EnforceFreeEntryLimit(ctx context.Context, q Querier, propertyID string) er
 		return &httpx.Error{
 			Status:  http.StatusPaymentRequired,
 			Code:    "SUBSCRIPTION_REQUIRED",
-			Message: "The first 9 entries (rooms, check-ins, and reservations) are free. After that, your account moves to the subscription plan.",
+			Message: "The first 9 entries (rooms, check-ins, and reservations) are free. From the 10th entry onwards, your account requires a subscription.",
 		}
 	}
 	return nil
