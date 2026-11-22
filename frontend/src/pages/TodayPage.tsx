@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { ArrowRight, LogIn, Sparkles, Star, UserPlus, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/ui";
 import { WhatsAppSend } from "../components/WhatsAppSend";
@@ -11,13 +11,31 @@ import { statusMeta, useRooms, type RoomStatus } from "../lib/rooms";
 import { addDays, dayLabel, hotelToday, useReservations } from "../lib/reservations";
 import { useStays, type StaySummary } from "../lib/stays";
 import { StayRow } from "./GuestsPage";
+import { MobileToday } from "./MobileToday";
 
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
+/** True at Tailwind's lg breakpoint and up (1024px). */
+function useIsDesktop() {
+  const query = "(min-width: 1024px)";
+  const [desktop, setDesktop] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setDesktop(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return desktop;
+}
+
 export function TodayPage() {
+  return useIsDesktop() ? <DesktopToday /> : <MobileToday />;
+}
+
+function DesktopToday() {
   const { user } = useAuth();
   const property = useCurrentProperty();
   const rooms = useRooms(property.id);

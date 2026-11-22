@@ -16,7 +16,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { InvitePage } from "./pages/InvitePage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { RoomsPage } from "./pages/RoomsPage";
-import { SettingsPage } from "./pages/SettingsPage";
+import { SettingsPage, SettingsSectionPage } from "./pages/SettingsPage";
 import { CheckInPage } from "./pages/CheckInPage";
 import { GuestDetailPage, GuestsPage } from "./pages/GuestsPage";
 import { StayPage } from "./pages/StayPage";
@@ -86,6 +86,7 @@ function HotelApp() {
           <Route path="staff" element={<RequireRole roles={["owner", "manager"]}><StaffPage /></RequireRole>} />
           <Route path="profile" element={<StaffProfilePage />} />
           <Route path="settings" element={<RequireRole roles={["owner", "manager"]}><SettingsPage /></RequireRole>} />
+          <Route path="settings/:section" element={<RequireRole roles={["owner", "manager"]}><SettingsSectionPage /></RequireRole>} />
           <Route path="billing" element={<RequireRole roles={["owner", "manager"]}><BillingPage /></RequireRole>} />
         </Route>
         {/* A signed-in user opening an invite (e.g. someone else's) is sent home. */}
