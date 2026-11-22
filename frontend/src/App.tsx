@@ -17,6 +17,7 @@ import { InvitePage } from "./pages/InvitePage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { RoomsPage } from "./pages/RoomsPage";
 import { SettingsPage, SettingsSectionPage } from "./pages/SettingsPage";
+import { PreviewPage } from "./pages/preview/Preview";
 import { CheckInPage } from "./pages/CheckInPage";
 import { GuestDetailPage, GuestsPage } from "./pages/GuestsPage";
 import { StayPage } from "./pages/StayPage";
@@ -85,6 +86,7 @@ function HotelApp() {
           <Route path="reports" element={<RequireRole roles={["owner", "manager"]}><ReportsPage /></RequireRole>} />
           <Route path="staff" element={<RequireRole roles={["owner", "manager"]}><StaffPage /></RequireRole>} />
           <Route path="profile" element={<StaffProfilePage />} />
+          <Route path="preview/:concept?" element={<PreviewPage />} />
           <Route path="settings" element={<RequireRole roles={["owner", "manager"]}><SettingsPage /></RequireRole>} />
           <Route path="settings/:section" element={<RequireRole roles={["owner", "manager"]}><SettingsSectionPage /></RequireRole>} />
           <Route path="billing" element={<RequireRole roles={["owner", "manager"]}><BillingPage /></RequireRole>} />
