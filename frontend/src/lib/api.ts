@@ -100,11 +100,8 @@ export function createClient<S extends { accessToken: string; refreshToken?: str
     if (res.status === 204) return undefined as T;
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      if (res.status === 402 && (data?.code === "SUBSCRIPTION_REQUIRED" || data?.code === "subscription_expired")) {
-        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/billing") && !window.location.pathname.startsWith("/admin")) {
-          window.location.href = "/billing";
-        }
-      }
+      // A 402 (plan ended / free entries used) is shown where it happened. No
+      // redirect: a page reload would throw away whatever the person typed.
       throw new ApiError(res.status, data?.code ?? "unknown", data?.message ?? "Something went wrong. Please try again.", data?.fields);
     }
     return data as T;

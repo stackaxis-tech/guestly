@@ -5,9 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CameraCapture } from "../components/CameraCapture";
 import { Button, Card, Disclosure, ErrorNote, Field, Input, PageHeader, Select, Stepper, Textarea } from "../components/ui";
+import { BlockedNotice } from "../components/BillingNotice";
 import { api, ApiError } from "../lib/api";
 import { clock12, rupees, toPaise } from "../lib/format";
-import { useCurrentProperty } from "../lib/property";
+import { useCurrentProperty, writeBlock } from "../lib/property";
 import {
   addDays as bookingAddDays,
   arrivalNight,
@@ -683,6 +684,19 @@ export function CheckInPage() {
   const found = lookup.state === "found";
   const phoneDigits = phone.replace(/\D/g, "");
   const nightsLabel = `${nights} ${nights === 1 ? "night" : "nights"}`;
+  const block = writeBlock(property);
+
+  if (block) {
+    return (
+      <>
+        <Link to="/" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
+          <ArrowLeft className="size-4" aria-hidden /> Today
+        </Link>
+        <PageHeader title="New check-in" />
+        <BlockedNotice {...block} />
+      </>
+    );
+  }
 
   return (
     <>

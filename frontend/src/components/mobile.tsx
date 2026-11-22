@@ -202,11 +202,12 @@ export function SearchBar({ value, onChange, placeholder, className }: { value: 
 
 /* ---------- Stay card ---------- */
 
-export type StayTone = "in_house" | "due_out" | "checked_out" | "cancelled";
+export type StayTone = "in_house" | "due_out" | "overdue" | "checked_out" | "cancelled";
 
 const pill: Record<StayTone, [string, string]> = {
   in_house: ["In-house", "bg-ready-bg text-ready"],
-  due_out: ["Due out", "bg-accent-50 text-accent-700"],
+  due_out: ["Due out today", "bg-accent-50 text-accent-700"],
+  overdue: ["Overdue", "bg-danger-bg text-danger"],
   checked_out: ["Checked out", "bg-maintenance-bg text-maintenance"],
   cancelled: ["Cancelled", "bg-danger-bg text-danger"],
 };
@@ -216,7 +217,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { d
 export function stayTone(s: StaySummary, todayIso: string): StayTone {
   if (s.status !== "in_house") return s.status;
   const due = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(s.expectedCheckOutAt));
-  return due <= todayIso ? "due_out" : "in_house";
+  return due < todayIso ? "overdue" : due === todayIso ? "due_out" : "in_house";
 }
 
 /** A stay as a card: who, which room, status, money and quick actions. */

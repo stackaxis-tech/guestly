@@ -370,6 +370,9 @@ function UserMenu() {
 /** Warns hotel staff about their Gustlog plan: trial ending, grace period, or read-only. */
 function BillingBanner() {
   const { current } = useProperty();
+  const { user } = useAuth();
+  // Only owners and managers can open /billing; other staff get the facts, not a dead button.
+  const manager = user?.role === "owner" || user?.role === "manager";
   const b = current?.billing;
   if (!b) return null;
   const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
@@ -418,7 +421,7 @@ function BillingBanner() {
         <Icon className="size-4 shrink-0" aria-hidden />
         <span className="font-medium">{text}</span>
       </div>
-      {showSubscribe && (
+      {showSubscribe && manager && (
         <Link
           to="/billing"
           className="ml-auto shrink-0 rounded-lg bg-ink px-3 py-1 text-xs font-semibold text-white transition hover:bg-ink/90"

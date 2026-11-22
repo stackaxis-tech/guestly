@@ -49,7 +49,7 @@ export function MobileToday() {
   const arrivals = (bookings.data ?? []).filter((r) => r.status === "booked" && r.checkIn <= todayIso && r.checkOut > todayIso);
   const lists = useMemo(() => {
     const house = inHouse.data ?? [];
-    const due = house.filter((x) => stayTone(x, todayIso) === "due_out");
+    const due = house.filter((x) => stayTone(x, todayIso) !== "in_house");
     const done = (session.data ?? []).filter((x) => x.status !== "in_house");
     return { house, departures: [...due, ...done] };
   }, [inHouse.data, session.data, todayIso]);
