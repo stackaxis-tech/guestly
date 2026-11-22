@@ -99,6 +99,67 @@
   cursor: pointer;
 }
 
+/* ---------- Touch: make the app feel native on phones ---------- */
+
+html {
+  -webkit-tap-highlight-color: transparent; /* no grey flash on Android taps */
+}
+a,
+button,
+[role="tab"],
+summary {
+  touch-action: manipulation; /* no double-tap zoom delay */
+}
+/* Long-press on app chrome shouldn't select text or open the iOS callout. */
+nav,
+button,
+.pressable {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (pointer: coarse) {
+  /* iOS zooms into any field under 16px; keep every field at 16px on touch screens. */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  /* Pressed state: touch screens have no hover, so show the press instead. */
+  .pressable {
+    transition: transform 120ms ease, background-color 120ms ease;
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+}
+
+/* While the on-screen keyboard is open, the bottom nav and floating button step aside. */
+.kb-open .hide-on-keyboard {
+  display: none !important;
+}
+
+/* Bottom sheets slide up on phones; the handle shows they can be swiped away. */
+@media (max-width: 639.98px) {
+  dialog.sheet[open] {
+    animation: sheet-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  dialog.sheet[open]::backdrop {
+    animation: sheet-fade 240ms ease;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

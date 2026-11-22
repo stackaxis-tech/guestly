@@ -73,7 +73,7 @@ export function MobileToday() {
       </div>
 
       {/* Room status strip */}
-      <Link to="/rooms" className="grid grid-cols-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-paper">
+      <Link to="/rooms" className="pressable grid grid-cols-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-paper">
         {(["ready", "occupied", "cleaning", "maintenance"] as RoomStatus[]).map((k, i) => (
           <span key={k} className={clsx("flex flex-col items-center px-1 py-3", i > 0 && "border-l border-line")}>
             <span className="tabular font-display text-xl font-bold">{s ? s[k] : "–"}</span>
@@ -155,9 +155,8 @@ function ArrivalCard({ r, todayIso }: { r: Reservation; todayIso: string }) {
   return (
     <article className="rounded-[var(--radius-card)] border border-line bg-paper">
       <div className="flex items-start gap-3 px-4 pt-4 pb-3">
-        <span className="tabular flex size-12 shrink-0 flex-col items-center justify-center rounded-xl border border-line bg-sand leading-none">
-          <span className="text-[9px] font-semibold tracking-wider text-muted uppercase">Room</span>
-          <span className="mt-0.5 font-display text-base font-bold">{r.roomNumber}</span>
+        <span className="tabular flex size-12 shrink-0 items-center justify-center rounded-xl border border-line bg-sand font-display text-lg font-bold" aria-label={`Room ${r.roomNumber}`}>
+          {r.roomNumber}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-start justify-between gap-2">
@@ -167,7 +166,7 @@ function ArrivalCard({ r, todayIso }: { r: Reservation; todayIso: string }) {
             </span>
           </span>
           <span className="mt-0.5 block truncate text-[13px] text-muted">
-            Until {dayLabel(r.checkOut)} · {r.roomType}
+            {r.roomType}, until {dayLabel(r.checkOut)}
           </span>
         </span>
       </div>
@@ -178,7 +177,7 @@ function ArrivalCard({ r, todayIso }: { r: Reservation; todayIso: string }) {
         </div>
         <Link
           to={`/check-in?reservation=${r.id}`}
-          className="flex h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"
+          className="pressable flex h-11 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800"
         >
           <CalendarCheck className="size-4" aria-hidden />
           Check in

@@ -8,6 +8,7 @@ import { ArrowLeft, ChevronRight, FileText, MessageCircle, Search, X, type Lucid
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { rupees } from "../lib/format";
+import { haptic } from "../lib/native";
 import type { StaySummary } from "../lib/stays";
 
 /* ---------- Lists ---------- */
@@ -15,7 +16,7 @@ import type { StaySummary } from "../lib/stays";
 export function ListGroup({ title, children }: { title?: string; children: ReactNode }) {
   return (
     <section>
-      {title && <h2 className="mb-2 px-1 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">{title}</h2>}
+      {title && <h2 className="mb-2 px-1 text-[13px] font-semibold text-muted">{title}</h2>}
       <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius-card)] border border-line bg-paper">{children}</ul>
     </section>
   );
@@ -58,7 +59,7 @@ export function ListRow({
       {to && <ChevronRight className="size-5 shrink-0 text-muted/70" aria-hidden />}
     </>
   );
-  const cls = "flex min-h-16 w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-sand active:bg-sand";
+  const cls = "pressable flex min-h-16 w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-sand active:bg-sand";
   return (
     <li>
       {to ? (
@@ -123,13 +124,13 @@ export function QuickActions({ items, title = "Quick actions" }: { items: QuickA
               <span className="w-full truncate text-center text-xs font-medium text-ink-soft">{a.label}</span>
             </>
           );
-          const cls = "group flex flex-col items-center gap-1.5 rounded-xl px-1 py-2 hover:bg-sand";
+          const cls = "pressable group flex flex-col items-center gap-1.5 rounded-xl px-1 py-2 hover:bg-sand";
           return a.to ? (
-            <Link key={a.id} to={a.to} className={cls}>
+            <Link key={a.id} to={a.to} className={cls} onClick={() => haptic()}>
               {tile}
             </Link>
           ) : (
-            <button key={a.id} type="button" onClick={a.onClick} className={cls}>
+            <button key={a.id} type="button" onClick={() => { haptic(); a.onClick?.(); }} className={cls}>
               {tile}
             </button>
           );
@@ -160,7 +161,7 @@ export function SegmentedTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
-            onClick={() => onChange(o.value)}
+            onClick={() => { if (!active) haptic(); onChange(o.value); }}
             className={clsx(
               "flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition-colors",
               active ? "border border-brand-200 bg-paper text-brand-700" : "text-muted hover:text-ink",
@@ -225,15 +226,14 @@ export function StayCard({ s, tone, onShare }: { s: StaySummary; tone: StayTone;
   const balance = s.balance ?? 0;
   const dates =
     s.status === "checked_out" && s.checkedOutAt
-      ? `${shortDate(s.checkInAt)} → ${shortDate(s.checkedOutAt)}`
-      : `${shortDate(s.checkInAt)} → ${shortDate(s.expectedCheckOutAt)}`;
+      ? `${shortDate(s.checkInAt)} – ${shortDate(s.checkedOutAt)}`
+      : `${shortDate(s.checkInAt)} – ${shortDate(s.expectedCheckOutAt)}`;
 
   return (
     <article className="rounded-[var(--radius-card)] border border-line bg-paper">
-      <Link to={`/stays/${s.id}`} className="flex items-start gap-3 px-4 pt-4 pb-3">
-        <span className="tabular flex size-12 shrink-0 flex-col items-center justify-center rounded-xl border border-line bg-sand leading-none">
-          <span className="text-[9px] font-semibold tracking-wider text-muted uppercase">Room</span>
-          <span className="mt-0.5 font-display text-base font-bold">{s.roomNumber}</span>
+      <Link to={`/stays/${s.id}`} className="pressable flex items-start gap-3 px-4 pt-4 pb-3">
+        <span className="tabular flex size-12 shrink-0 items-center justify-center rounded-xl border border-line bg-sand font-display text-lg font-bold" aria-label={`Room ${s.roomNumber}`}>
+          {s.roomNumber}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-start justify-between gap-2">
@@ -241,7 +241,7 @@ export function StayCard({ s, tone, onShare }: { s: StaySummary; tone: StayTone;
             <span className={clsx("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", cls)}>{label}</span>
           </span>
           <span className="mt-0.5 block truncate text-[13px] text-muted">
-            {dates} · {s.roomType}
+            {s.roomType}, {dates}
           </span>
         </span>
       </Link>
@@ -260,12 +260,12 @@ export function StayCard({ s, tone, onShare }: { s: StaySummary; tone: StayTone;
             </div>
           </div>
           {s.status === "checked_out" && (
-            <Link to={`/stays/${s.id}/invoice`} className="flex size-10 items-center justify-center rounded-full text-ink-soft hover:bg-sand" aria-label="Invoice">
+            <Link to={`/stays/${s.id}/invoice`} className="pressable flex size-11 items-center justify-center rounded-full text-ink-soft hover:bg-sand" aria-label="Invoice">
               <FileText className="size-5" />
             </Link>
           )}
           {onShare && (
-            <button type="button" onClick={onShare} className="flex size-10 items-center justify-center rounded-full text-ink-soft hover:bg-sand" aria-label="Send on WhatsApp">
+            <button type="button" onClick={onShare} className="pressable flex size-11 items-center justify-center rounded-full text-ink-soft hover:bg-sand" aria-label="Send on WhatsApp">
               <MessageCircle className="size-5" />
             </button>
           )}
@@ -282,7 +282,8 @@ export function Fab({ to, icon: Icon, label }: { to: string; icon: LucideIcon; l
   return (
     <Link
       to={to}
-      className="fixed right-4 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+5rem)] z-20 flex h-14 items-center gap-2 rounded-full bg-brand-700 pr-6 pl-5 font-semibold text-white shadow-[var(--shadow-float)] transition-colors hover:bg-brand-800 active:bg-brand-900 lg:hidden"
+      onClick={() => haptic("medium")}
+      className="pressable hide-on-keyboard fixed right-4 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+5rem)] z-20 flex h-14 items-center gap-2 rounded-full bg-brand-700 pr-6 pl-5 font-semibold text-white shadow-[var(--shadow-float)] transition-colors hover:bg-brand-800 active:bg-brand-900 lg:hidden"
     >
       <Icon className="size-5" aria-hidden />
       {label}

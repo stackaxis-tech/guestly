@@ -11,6 +11,7 @@ import { useAlerts } from "../lib/alerts";
 import { roleLabel, useAuth } from "../lib/auth";
 import { initials } from "../lib/format";
 import { menuFor } from "../lib/menu";
+import { haptic } from "../lib/native";
 import { useCurrentProperty, useProperty } from "../lib/property";
 
 /** Lets any page (e.g. Home's "All" tile) open the More sheet. */
@@ -98,7 +99,7 @@ export function AppShell() {
           manager-only tabs move into the More sheet so the bar stays at five. */}
       {!hideNav(pathname) && (
         <nav
-          className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
+          className="hide-on-keyboard fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex max-w-[600px] rounded-2xl border border-line bg-paper/95 px-1 shadow-[var(--shadow-float)] backdrop-blur lg:max-w-[680px]"
           aria-label="Main"
         >
           {nav.map(({ id, to, label, short, icon: Icon, end, nav: where }) => (
@@ -106,9 +107,10 @@ export function AppShell() {
               key={id}
               to={to}
               end={end}
+              onClick={() => haptic()}
               className={({ isActive }) =>
                 clsx(
-                  "relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors",
+                  "pressable relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors",
                   isActive ? "font-bold text-brand-700" : "font-medium text-muted hover:text-ink",
                   where === "desktop" && "hidden lg:flex",
                 )
@@ -128,9 +130,12 @@ export function AppShell() {
           ))}
           <button
             type="button"
-            onClick={() => setMoreOpen(true)}
+            onClick={() => {
+              haptic();
+              setMoreOpen(true);
+            }}
             className={clsx(
-              "relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors lg:hidden",
+              "pressable relative flex min-w-0 flex-1 flex-col items-center gap-1 pt-3 pb-2.5 text-[11px] transition-colors lg:hidden",
               moreOpen ? "font-bold text-brand-700" : "font-medium text-muted hover:text-ink",
             )}
           >
@@ -378,7 +383,7 @@ function BillingBanner() {
 
   if (isTrial && usage && usage.exceeded) {
     tone = "border-danger/30 bg-danger-bg text-danger";
-    text = `Free tier limit reached (${usage.total}/${usage.limit} entries used across rooms, check-ins & reservations). Move to a subscription plan to continue.`;
+    text = `Free limit reached: ${usage.total} of ${usage.limit} entries used. Subscribe to keep adding rooms, check-ins and bookings.`;
     showSubscribe = true;
   } else if (b.state === "expired") {
     tone = "border-danger/30 bg-danger-bg text-danger";
@@ -408,7 +413,7 @@ function BillingBanner() {
 
   const Icon = b.state === "expired" || (b.state === "trial" && b.daysLeft <= 3) || b.state === "grace" ? AlertTriangle : Clock;
   return (
-    <div className={clsx("mb-6 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm", tone)} role="status">
+    <div className={clsx("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[13px] leading-snug sm:mb-6 sm:px-4 sm:py-3 sm:text-sm", tone)} role="status">
       <div className="flex items-center gap-3">
         <Icon className="size-4 shrink-0" aria-hidden />
         <span className="font-medium">{text}</span>
