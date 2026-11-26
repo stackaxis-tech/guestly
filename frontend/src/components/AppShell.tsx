@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, Bell, ChevronDown, Check, Clock, LogOut, MapPin, MoreHorizontal, Settings, UserCheck } from "lucide-react";
+import { AlertTriangle, Bell, ChevronDown, Check, Clock, LogOut, MapPin, MoreHorizontal, Settings, Sparkles, UserCheck } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -382,13 +382,58 @@ function BillingBanner() {
   const b = current?.billing;
   if (!b) return null;
   const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
+  const usage = current?.entryUsage;
+  const isTrial = current?.subscription?.isTrial;
+
+  if (b.state === "trial" && !(isTrial && usage && usage.exceeded)) {
+    const urgent = b.daysLeft <= 3;
+    const tone = urgent
+      ? "border-danger/30 bg-danger-bg text-danger"
+      : b.daysLeft <= 7
+        ? "border-accent-300 bg-accent-50 text-accent-700"
+        : "border-brand-200 bg-brand-50 text-brand-700";
+    const pct = usage ? Math.min(100, Math.round((usage.total / Math.max(1, usage.limit)) * 100)) : 0;
+    const daysText = b.daysLeft === 0 ? "Ends today" : `${days(b.daysLeft)} left`;
+    return (
+      <div className="surface mb-5 flex flex-col gap-3 px-3.5 py-3.5 sm:mb-6 sm:flex-row sm:items-center sm:px-5 sm:py-4" role="status">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className={clsx("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border", tone)}>
+            {urgent ? <AlertTriangle className="size-4" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-sm text-ink">Trial version</span>
+              <span className={clsx("rounded-full px-2 py-0.5 text-xs font-semibold", tone)}>
+                {daysText}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[13px] leading-snug text-muted sm:text-sm">
+              {usage
+                ? `You're on the free trial (${usage.total} of ${usage.limit} free entries used across rooms, check-ins, and reservations).`
+                : "You're on the 30-day free trial with full access to all Gustlog features."}
+            </p>
+            {usage && (
+              <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-sand">
+                <div
+                  className={clsx("h-full rounded-full transition-all", urgent ? "bg-danger" : "bg-brand-700")}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        {manager && (
+          <Link to="/billing" className="pressable shrink-0 self-start rounded-lg bg-ink px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-ink/90 sm:self-center">
+            See plans
+          </Link>
+        )}
+      </div>
+    );
+  }
 
   let tone = "";
   let text = "";
   let showSubscribe = false;
-
-  const usage = current?.entryUsage;
-  const isTrial = current?.subscription?.isTrial;
 
   if (isTrial && usage && usage.exceeded) {
     tone = "border-danger/30 bg-danger-bg text-danger";
@@ -402,16 +447,6 @@ function BillingBanner() {
     tone = "border-accent-300 bg-accent-50 text-accent-700";
     text = `Your Gustlog plan ended. Renew within ${days(b.graceDaysLeft)} to avoid read-only mode.`;
     showSubscribe = true;
-  } else if (b.state === "trial") {
-    if (b.daysLeft <= 3) {
-      tone = "border-danger/30 bg-danger-bg text-danger";
-    } else if (b.daysLeft <= 7) {
-      tone = "border-accent-300 bg-accent-50 text-accent-700";
-    } else {
-      tone = "border-brand-200 bg-brand-50 text-brand-800";
-    }
-    text = b.daysLeft === 0 ? "Free trial: ends today." : `Free trial: ${days(b.daysLeft)} left.`;
-    showSubscribe = true;
   } else if (b.state === "active" && b.daysLeft <= 7) {
     tone = "border-brand-200 bg-brand-50 text-brand-800";
     text = b.daysLeft === 0 ? "Your Gustlog plan renews today." : `Your Gustlog plan is due for renewal in ${days(b.daysLeft)}.`;
@@ -420,7 +455,7 @@ function BillingBanner() {
     return null;
   }
 
-  const Icon = b.state === "expired" || (b.state === "trial" && b.daysLeft <= 3) || b.state === "grace" ? AlertTriangle : Clock;
+  const Icon = b.state === "expired" || b.state === "grace" || (isTrial && usage?.exceeded) ? AlertTriangle : Clock;
   return (
     <div className="surface mb-5 flex items-center gap-3 px-3.5 py-3 sm:mb-6 sm:px-4" role="status">
       <span className={clsx("flex size-8 shrink-0 items-center justify-center rounded-full", tone)}>

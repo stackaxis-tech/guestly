@@ -65,13 +65,13 @@ export function BrandPanel() {
           </div>
         ) : (
           <div className="mt-8 rounded-xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm">
-            <span className="text-xs font-bold tracking-wider text-accent-400 uppercase">New Hotel</span>
-            <p className="mt-1 text-sm text-white/80">Set up your property and start welcoming guests.</p>
+            <span className="text-xs font-bold tracking-wider text-accent-400 uppercase">New hotel</span>
+            <p className="mt-1 text-sm text-white/80">Set up your property and start welcoming guests in minutes.</p>
             <Link
               to="/register"
               className="mt-3 inline-flex items-center justify-center rounded-lg bg-accent-400 px-4 py-2 text-xs font-semibold text-ink transition hover:bg-accent-300"
             >
-              Try to Register
+              Register
             </Link>
           </div>
         )}
@@ -175,20 +175,20 @@ function LoginForm() {
 
       {/* Mobile-only registration card */}
       <div className="mt-8 rounded-xl border border-line bg-paper p-4 lg:hidden">
-        <span className="text-xs font-bold tracking-wider text-accent-700 uppercase">New Hotel</span>
-        <p className="mt-1 text-sm text-muted">Set up your property and start welcoming guests.</p>
+        <span className="text-xs font-bold tracking-wider text-accent-700 uppercase">New hotel</span>
+        <p className="mt-1 text-sm text-muted">Set up your property and start welcoming guests in minutes.</p>
         <Link
           to="/register"
           className="mt-3 inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2 text-xs font-semibold text-white transition hover:bg-ink/90"
         >
-          Try to Register
+          Register
         </Link>
       </div>
 
       <p className="mt-6 text-center text-sm text-muted">
         New hotel?{" "}
         <Link to="/register" className="font-semibold text-brand-700 hover:text-brand-800">
-          Try to Register
+          Register
         </Link>
       </p>
     </>

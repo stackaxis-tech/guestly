@@ -10,6 +10,7 @@ export function BillingPage() {
 
   const s = current?.subscription;
   const b = current?.billing;
+  const usage = current?.entryUsage;
 
   if (!isOwner) {
     return (
@@ -58,10 +59,11 @@ export function BillingPage() {
             <Clock className="size-5 shrink-0 mt-0.5 text-brand-700" />
             <div>
               <h3 className="font-semibold text-base">
-                {b.daysLeft === 0 ? "Your free trial ends today" : `Free trial: ${days(b.daysLeft)} left`}
+                {b.daysLeft === 0 ? "Your free trial ends today" : `Trial version: ${days(b.daysLeft)} left`}
               </h3>
               <p className="mt-1 text-sm text-brand-800">
-                You have full access to all Gustlog features during your 30-day trial period.
+                You have full access to all Gustlog features during your 30-day trial period
+                {usage ? ` (${usage.total} of ${usage.limit} free entries used across rooms, check-ins, and reservations).` : "."}
               </p>
             </div>
           </div>
